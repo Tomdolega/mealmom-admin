@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { RecipeStatus } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { getClientUILang, tr } from "@/lib/ui-language";
+import { getClientUILang, tr } from "@/lib/ui-language.client";
 
 const allowedStatuses: RecipeStatus[] = ["draft", "in_review", "published", "archived"];
 const UPSERT_CHUNK_SIZE = 100;

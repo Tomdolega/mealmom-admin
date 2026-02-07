@@ -10,6 +10,7 @@ import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { getClientUILang, tr } from "@/lib/ui-language.client";
 
 const allStatuses: RecipeStatus[] = ["draft", "in_review", "published", "archived"];
 const imageBucket = process.env.NEXT_PUBLIC_SUPABASE_PRODUCT_IMAGES_BUCKET || "recipe-images";
@@ -63,8 +64,8 @@ function normalizeSteps(items: StepItem[]) {
     .filter((item) => item.text.length > 0);
 }
 
-function formatLastSaved(value: string | null) {
-  if (!value) return "Not saved yet";
+function formatLastSaved(value: string | null, lang: "en" | "pl") {
+  if (!value) return tr(lang, "Not saved yet", "Jeszcze nie zapisano");
   return new Date(value).toLocaleString();
 }
 
@@ -78,6 +79,8 @@ export function RecipeForm({
   enabledCuisines,
   defaultLanguage,
 }: RecipeFormProps) {
+  const lang = getClientUILang();
+  const tt = useCallback((en: string, pl: string) => tr(lang, en, pl), [lang]);
   const router = useRouter();
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -206,7 +209,7 @@ export function RecipeForm({
       }
 
       if (result.error) {
-        setError("Could not save this recipe. Check required fields and try again.");
+        setError(tt("Could not save this recipe. Check required fields and try again.", "Nie udało się zapisać przepisu. Sprawdź wymagane pola i spróbuj ponownie."));
         return;
       }
 
@@ -223,7 +226,7 @@ export function RecipeForm({
         router.refresh();
       }
     },
-    [autoSaveEnabled, canAutoSave, isDirty, mode, payload, recipe, router, status],
+    [autoSaveEnabled, canAutoSave, isDirty, mode, payload, recipe, router, status, tt],
   );
 
   useEffect(() => {
@@ -263,7 +266,10 @@ export function RecipeForm({
 
       if (uploadError) {
         setError(
-          `Could not upload one or more images. Ensure bucket '${imageBucket}' exists and has upload policies for authenticated users.`,
+          tt(
+            `Could not upload one or more images. Ensure bucket '${imageBucket}' exists and has upload policies for authenticated users.`,
+            `Nie udało się wgrać jednego lub więcej zdjęć. Upewnij się, że bucket '${imageBucket}' istnieje i ma polityki uploadu dla zalogowanych użytkowników.`,
+          ),
         );
         continue;
       }
@@ -295,8 +301,8 @@ export function RecipeForm({
       <section className="space-y-3 rounded-xl border border-slate-200 bg-white/70 p-4 backdrop-blur-xl">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-base font-semibold text-slate-900">Editing session</h2>
-            <p className="text-sm text-slate-600">Save manually at any time. Draft changes can auto-save.</p>
+            <h2 className="text-base font-semibold text-slate-900">{tt("Editing session", "Sesja edycji")}</h2>
+            <p className="text-sm text-slate-600">{tt("Save manually at any time. Draft changes can auto-save.", "Możesz zapisywać ręcznie w dowolnym momencie. Szkice zapisują się też automatycznie.")}</p>
           </div>
           {canAutoSave ? (
             <label className="inline-flex items-center gap-2 text-sm text-slate-700">
@@ -306,42 +312,42 @@ export function RecipeForm({
                 onChange={(event) => setAutoSaveEnabled(event.target.checked)}
                 className="h-4 w-4 rounded border-slate-300"
               />
-              Auto-save draft
+              {tt("Auto-save draft", "Auto-zapis szkicu")}
             </label>
           ) : null}
         </div>
 
         <div className="flex flex-wrap items-center gap-4 text-sm">
-          <span className={isDirty ? "text-amber-700" : "text-slate-600"}>{isDirty ? "Unsaved changes" : "All changes saved"}</span>
-          <span className="text-slate-500">Last saved: {formatLastSaved(lastSavedAt)}</span>
-          {isAutoSaving ? <span className="text-slate-600">Auto-saving...</span> : null}
+          <span className={isDirty ? "text-amber-700" : "text-slate-600"}>{isDirty ? tt("Unsaved changes", "Niezapisane zmiany") : tt("All changes saved", "Wszystkie zmiany zapisane")}</span>
+          <span className="text-slate-500">{tt("Last saved", "Ostatni zapis")}: {formatLastSaved(lastSavedAt, lang)}</span>
+          {isAutoSaving ? <span className="text-slate-600">{tt("Auto-saving...", "Auto-zapis...")}</span> : null}
         </div>
 
         {role === "reviewer" ? (
           <p className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-600">
-            Reviewer mode: content fields are read-only. You can only move recipes from in_review to draft or published.
+            {tt("Reviewer mode: content fields are read-only. You can only move recipes from in_review to draft or published.", "Tryb recenzenta: pola treści są tylko do odczytu. Możesz zmieniać status z in_review na draft lub published.")}
           </p>
         ) : null}
       </section>
 
       <section className="space-y-4 rounded-xl border border-slate-200 bg-white/70 p-4 backdrop-blur-xl">
         <header className="space-y-1 border-b border-slate-200 pb-3">
-          <h2 className="text-base font-semibold text-slate-900">Recipe details</h2>
-          <p className="text-sm text-slate-600">Basic metadata used in search, lists, and workflow.</p>
+          <h2 className="text-base font-semibold text-slate-900">{tt("Recipe details", "Szczegóły przepisu")}</h2>
+          <p className="text-sm text-slate-600">{tt("Basic metadata used in search, lists, and workflow.", "Podstawowe metadane używane w wyszukiwaniu, listach i workflow.")}</p>
         </header>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
-            <FormField label="Title">
+            <FormField label={tt("Title", "Tytuł")}>
               <Input required value={title} onChange={(e) => setTitle(e.target.value)} disabled={!canEditContent} />
             </FormField>
           </div>
           <div className="sm:col-span-2">
-            <FormField label="Subtitle">
+            <FormField label={tt("Subtitle", "Podtytuł")}>
               <Input value={subtitle} onChange={(e) => setSubtitle(e.target.value)} disabled={!canEditContent} />
             </FormField>
           </div>
-          <FormField label="Language">
+          <FormField label={tt("Language", "Język")}>
             <Select value={recipeLanguage} onChange={(e) => setRecipeLanguage(e.target.value)} disabled={!canEditContent}>
               {enabledLanguages.map((item) => (
                 <option key={item} value={item}>
@@ -350,12 +356,8 @@ export function RecipeForm({
               ))}
             </Select>
           </FormField>
-          <FormField label="Status">
-            <Select
-              value={status}
-              onChange={(e) => setStatus(e.target.value as RecipeStatus)}
-              disabled={role === "reviewer" ? !reviewerStatusEditable : false}
-            >
+          <FormField label={tt("Status", "Status")}>
+            <Select value={status} onChange={(e) => setStatus(e.target.value as RecipeStatus)} disabled={role === "reviewer" ? !reviewerStatusEditable : false}>
               {allowedStatuses.map((item) => (
                 <option key={item} value={item}>
                   {item}
@@ -363,9 +365,9 @@ export function RecipeForm({
               ))}
             </Select>
           </FormField>
-          <FormField label="Primary cuisine">
+          <FormField label={tt("Primary cuisine", "Kuchnia główna")}>
             <Select value={primaryCuisine} onChange={(e) => setPrimaryCuisine(e.target.value)} disabled={!canEditContent}>
-              <option value="">None</option>
+              <option value="">{tt("None", "Brak")}</option>
               {enabledCuisines.map((item) => (
                 <option key={item} value={item}>
                   {item}
@@ -373,7 +375,7 @@ export function RecipeForm({
               ))}
             </Select>
           </FormField>
-          <FormField label="Cuisines">
+          <FormField label={tt("Cuisines", "Kuchnie")}>
             <Select
               value=""
               onChange={(event) => {
@@ -383,7 +385,7 @@ export function RecipeForm({
               }}
               disabled={!canEditContent}
             >
-              <option value="">Add cuisine...</option>
+              <option value="">{tt("Add cuisine...", "Dodaj kuchnię...")}</option>
               {availableCuisineOptions.map((item) => (
                 <option key={item} value={item}>
                   {item}
@@ -395,11 +397,7 @@ export function RecipeForm({
                 <span key={item} className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-700">
                   {item}
                   {canEditContent ? (
-                    <button
-                      type="button"
-                      className="text-slate-500 hover:text-slate-900"
-                      onClick={() => setSelectedCuisines((prev) => prev.filter((value) => value !== item))}
-                    >
+                    <button type="button" className="text-slate-500 hover:text-slate-900" onClick={() => setSelectedCuisines((prev) => prev.filter((value) => value !== item))}>
                       x
                     </button>
                   ) : null}
@@ -407,21 +405,21 @@ export function RecipeForm({
               ))}
             </div>
           </FormField>
-          <FormField label="Tags (comma-separated)">
+          <FormField label={tt("Tags (comma-separated)", "Tagi (po przecinku)")}>
             <Input value={tagsText} onChange={(e) => setTagsText(e.target.value)} placeholder="quick, family" disabled={!canEditContent} />
           </FormField>
-          <FormField label="Servings">
+          <FormField label={tt("Servings", "Porcje")}>
             <Input type="number" min={1} value={servings} onChange={(e) => setServings(e.target.value)} disabled={!canEditContent} />
           </FormField>
-          <FormField label="Total minutes">
+          <FormField label={tt("Total minutes", "Czas całkowity (min)")}>
             <Input type="number" min={0} value={totalMinutes} onChange={(e) => setTotalMinutes(e.target.value)} disabled={!canEditContent} />
           </FormField>
-          <FormField label="Difficulty">
+          <FormField label={tt("Difficulty", "Poziom trudności")}>
             <Select value={difficulty} onChange={(e) => setDifficulty(e.target.value)} disabled={!canEditContent}>
-              <option value="">Select...</option>
-              <option value="easy">easy</option>
-              <option value="medium">medium</option>
-              <option value="hard">hard</option>
+              <option value="">{tt("Select...", "Wybierz...")}</option>
+              <option value="easy">{tt("easy", "łatwy")}</option>
+              <option value="medium">{tt("medium", "średni")}</option>
+              <option value="hard">{tt("hard", "trudny")}</option>
             </Select>
           </FormField>
         </div>
@@ -430,27 +428,14 @@ export function RecipeForm({
       <section className="space-y-4 rounded-xl border border-slate-200 bg-white/70 p-4 backdrop-blur-xl">
         <header className="flex items-start justify-between gap-3 border-b border-slate-200 pb-3">
           <div>
-            <h2 className="text-base font-semibold text-slate-900">Product images</h2>
-            <p className="text-sm text-slate-600">Dodaj linki zdjęć lub wgraj pliki bezpośrednio do Supabase Storage.</p>
+            <h2 className="text-base font-semibold text-slate-900">{tt("Product images", "Zdjęcia produktu")}</h2>
+            <p className="text-sm text-slate-600">{tt("Add image URLs or upload files directly to Supabase Storage.", "Dodaj adresy URL zdjęć lub wgraj pliki bezpośrednio do Supabase Storage.")}</p>
           </div>
           {canEditContent ? (
             <div className="flex items-center gap-2">
-              <input
-                ref={uploadInputRef}
-                type="file"
-                accept="image/*"
-                multiple
-                className="hidden"
-                onChange={(event) => void handleImageUpload(event.target.files)}
-              />
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={() => uploadInputRef.current?.click()}
-                disabled={uploadingImages}
-              >
-                {uploadingImages ? "Uploading..." : "Upload images"}
+              <input ref={uploadInputRef} type="file" accept="image/*" multiple className="hidden" onChange={(event) => void handleImageUpload(event.target.files)} />
+              <Button type="button" variant="secondary" size="sm" onClick={() => uploadInputRef.current?.click()} disabled={uploadingImages}>
+                {uploadingImages ? tt("Uploading...", "Wgrywanie...") : tt("Upload images", "Wgraj zdjęcia")}
               </Button>
             </div>
           ) : null}
@@ -460,13 +445,13 @@ export function RecipeForm({
           <div className="flex flex-wrap gap-2">
             <Input value={newImageUrl} onChange={(e) => setNewImageUrl(e.target.value)} placeholder="https://..." className="max-w-lg" />
             <Button type="button" variant="secondary" onClick={addImageUrl}>
-              Add URL
+              {tt("Add URL", "Dodaj URL")}
             </Button>
           </div>
         ) : null}
 
         {imageUrls.length === 0 ? (
-          <p className="text-sm text-slate-500">No images yet.</p>
+          <p className="text-sm text-slate-500">{tt("No images yet.", "Brak zdjęć.")}</p>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {imageUrls.map((url) => (
@@ -476,14 +461,8 @@ export function RecipeForm({
                 </div>
                 <p className="truncate text-xs text-slate-600">{url}</p>
                 {canEditContent ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="mt-2 text-red-600 hover:bg-red-50"
-                    onClick={() => setImageUrls((prev) => prev.filter((item) => item !== url))}
-                  >
-                    Remove
+                  <Button type="button" variant="ghost" size="sm" className="mt-2 text-red-600 hover:bg-red-50" onClick={() => setImageUrls((prev) => prev.filter((item) => item !== url))}>
+                    {tt("Remove", "Usuń")}
                   </Button>
                 ) : null}
               </div>
@@ -495,17 +474,12 @@ export function RecipeForm({
       <section className="space-y-4 rounded-xl border border-slate-200 bg-white/70 p-4 backdrop-blur-xl">
         <header className="flex items-start justify-between gap-3 border-b border-slate-200 pb-3">
           <div>
-            <h2 className="text-base font-semibold text-slate-900">Ingredients</h2>
-            <p className="text-sm text-slate-600">Capture each ingredient as a structured row.</p>
+            <h2 className="text-base font-semibold text-slate-900">{tt("Ingredients", "Składniki")}</h2>
+            <p className="text-sm text-slate-600">{tt("Capture each ingredient as a structured row.", "Każdy składnik zapisz jako osobny, uporządkowany wiersz.")}</p>
           </div>
           {canEditContent ? (
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={() => setIngredients((prev) => [...prev, { name: "", amount: "", unit: "", note: "" }])}
-            >
-              Add ingredient
+            <Button type="button" variant="secondary" size="sm" onClick={() => setIngredients((prev) => [...prev, { name: "", amount: "", unit: "", note: "" }])}>
+              {tt("Add ingredient", "Dodaj składnik")}
             </Button>
           ) : null}
         </header>
@@ -513,39 +487,13 @@ export function RecipeForm({
         <div className="space-y-2">
           {ingredients.map((ingredient, index) => (
             <div key={`ingredient-${index}`} className="grid gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:grid-cols-4">
-              <Input
-                placeholder="Name"
-                value={ingredient.name}
-                disabled={!canEditContent}
-                onChange={(e) => setIngredients((prev) => prev.map((item, i) => (i === index ? { ...item, name: e.target.value } : item)))}
-              />
-              <Input
-                placeholder="Amount"
-                value={ingredient.amount}
-                disabled={!canEditContent}
-                onChange={(e) => setIngredients((prev) => prev.map((item, i) => (i === index ? { ...item, amount: e.target.value } : item)))}
-              />
-              <Input
-                placeholder="Unit"
-                value={ingredient.unit}
-                disabled={!canEditContent}
-                onChange={(e) => setIngredients((prev) => prev.map((item, i) => (i === index ? { ...item, unit: e.target.value } : item)))}
-              />
-              <Input
-                placeholder="Note (optional)"
-                value={ingredient.note || ""}
-                disabled={!canEditContent}
-                onChange={(e) => setIngredients((prev) => prev.map((item, i) => (i === index ? { ...item, note: e.target.value } : item)))}
-              />
+              <Input placeholder={tt("Name", "Nazwa")} value={ingredient.name} disabled={!canEditContent} onChange={(e) => setIngredients((prev) => prev.map((item, i) => (i === index ? { ...item, name: e.target.value } : item)))} />
+              <Input placeholder={tt("Amount", "Ilość")} value={ingredient.amount} disabled={!canEditContent} onChange={(e) => setIngredients((prev) => prev.map((item, i) => (i === index ? { ...item, amount: e.target.value } : item)))} />
+              <Input placeholder={tt("Unit", "Jednostka")} value={ingredient.unit} disabled={!canEditContent} onChange={(e) => setIngredients((prev) => prev.map((item, i) => (i === index ? { ...item, unit: e.target.value } : item)))} />
+              <Input placeholder={tt("Note (optional)", "Notatka (opcjonalnie)")} value={ingredient.note || ""} disabled={!canEditContent} onChange={(e) => setIngredients((prev) => prev.map((item, i) => (i === index ? { ...item, note: e.target.value } : item)))} />
               {canEditContent ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="w-fit text-red-600 hover:bg-red-50"
-                  onClick={() => setIngredients((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev))}
-                >
-                  Remove
+                <Button type="button" variant="ghost" size="sm" className="w-fit text-red-600 hover:bg-red-50" onClick={() => setIngredients((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev))}>
+                  {tt("Remove", "Usuń")}
                 </Button>
               ) : null}
             </div>
@@ -556,17 +504,12 @@ export function RecipeForm({
       <section className="space-y-4 rounded-xl border border-slate-200 bg-white/70 p-4 backdrop-blur-xl">
         <header className="flex items-start justify-between gap-3 border-b border-slate-200 pb-3">
           <div>
-            <h2 className="text-base font-semibold text-slate-900">Steps</h2>
-            <p className="text-sm text-slate-600">Keep instructions concise and ordered for easier review.</p>
+            <h2 className="text-base font-semibold text-slate-900">{tt("Steps", "Kroki")}</h2>
+            <p className="text-sm text-slate-600">{tt("Keep instructions concise and ordered for easier review.", "Zachowaj krótkie i uporządkowane instrukcje dla łatwej recenzji.")}</p>
           </div>
           {canEditContent ? (
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={() => setSteps((prev) => [...prev, { step_number: prev.length + 1, text: "", timer_seconds: null }])}
-            >
-              Add step
+            <Button type="button" variant="secondary" size="sm" onClick={() => setSteps((prev) => [...prev, { step_number: prev.length + 1, text: "", timer_seconds: null }])}>
+              {tt("Add step", "Dodaj krok")}
             </Button>
           ) : null}
         </header>
@@ -574,33 +517,12 @@ export function RecipeForm({
         <div className="space-y-2">
           {steps.map((step, index) => (
             <div key={`step-${index}`} className="grid gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:grid-cols-5">
-              <div className="flex h-9 items-center rounded-md bg-white px-3 text-sm text-slate-600">Step {index + 1}</div>
-              <Textarea
-                placeholder="Describe this step"
-                value={step.text}
-                disabled={!canEditContent}
-                onChange={(e) => setSteps((prev) => prev.map((item, i) => (i === index ? { ...item, text: e.target.value } : item)))}
-                className="sm:col-span-3 min-h-9"
-              />
-              <Input
-                type="number"
-                min={0}
-                placeholder="Timer sec"
-                value={step.timer_seconds ?? ""}
-                disabled={!canEditContent}
-                onChange={(e) =>
-                  setSteps((prev) => prev.map((item, i) => (i === index ? { ...item, timer_seconds: e.target.value ? Number(e.target.value) : null } : item)))
-                }
-              />
+              <div className="flex h-9 items-center rounded-md bg-white px-3 text-sm text-slate-600">{tt("Step", "Krok")} {index + 1}</div>
+              <Textarea placeholder={tt("Describe this step", "Opisz ten krok")} value={step.text} disabled={!canEditContent} onChange={(e) => setSteps((prev) => prev.map((item, i) => (i === index ? { ...item, text: e.target.value } : item)))} className="sm:col-span-3 min-h-9" />
+              <Input type="number" min={0} placeholder={tt("Timer sec", "Timer sek")} value={step.timer_seconds ?? ""} disabled={!canEditContent} onChange={(e) => setSteps((prev) => prev.map((item, i) => (i === index ? { ...item, timer_seconds: e.target.value ? Number(e.target.value) : null } : item)))} />
               {canEditContent ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="w-fit text-red-600 hover:bg-red-50"
-                  onClick={() => setSteps((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev))}
-                >
-                  Remove
+                <Button type="button" variant="ghost" size="sm" className="w-fit text-red-600 hover:bg-red-50" onClick={() => setSteps((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev))}>
+                  {tt("Remove", "Usuń")}
                 </Button>
               ) : null}
             </div>
@@ -612,7 +534,7 @@ export function RecipeForm({
 
       <div className="flex items-center justify-end">
         <Button disabled={submitting || isAutoSaving} type="submit">
-          {submitting ? "Saving..." : "Save recipe"}
+          {submitting ? tt("Saving...", "Zapisywanie...") : tt("Save recipe", "Zapisz przepis")}
         </Button>
       </div>
     </form>
