@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { Button } from "@/components/ui/button";
 
 type ExportButtonProps = {
   language?: string;
@@ -51,15 +52,10 @@ export function ExportPublishedPackButton({ language, cuisine }: ExportButtonPro
 
   return (
     <div className="space-y-2">
-      <button
-        type="button"
-        onClick={handleExport}
-        disabled={loading}
-        className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-60"
-      >
+      <Button type="button" variant="secondary" onClick={handleExport} disabled={loading}>
         {loading ? "Exporting..." : "Export published pack"}
-      </button>
-      {error ? <p className="text-sm text-red-600">{error}</p> : null}
+      </Button>
+      {error ? <p className="text-sm text-red-700">{error}</p> : null}
     </div>
   );
 }

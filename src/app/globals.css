@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+:root {
+  --page-bg: #f5f7fb;
+}
+
 body {
   font-family: var(--font-geist), sans-serif;
+  background: radial-gradient(circle at top left, #f8fafc 0%, #f3f5f9 45%, #eff2f7 100%);
+  color: #0f172a;
 }

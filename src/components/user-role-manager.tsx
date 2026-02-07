@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { ProfileRecord, ProfileRole } from "@/lib/types";
+import { Card } from "@/components/ui/card";
+import { Select } from "@/components/ui/select";
 
 type UserRoleManagerProps = {
   profiles: ProfileRecord[];
@@ -34,26 +36,26 @@ export function UserRoleManager({ profiles }: UserRoleManagerProps) {
 
   return (
     <div className="space-y-3">
-      {error ? <p className="text-sm text-red-600">{error}</p> : null}
-      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+      {error ? <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}
+      <Card className="overflow-x-auto p-0">
         <table className="min-w-full divide-y divide-slate-200 text-sm">
           <thead className="bg-slate-50">
             <tr>
-              <th className="px-3 py-2 text-left font-medium">User ID</th>
-              <th className="px-3 py-2 text-left font-medium">Display Name</th>
-              <th className="px-3 py-2 text-left font-medium">Role</th>
+              <th className="px-4 py-3 text-left font-medium">User ID</th>
+              <th className="px-4 py-3 text-left font-medium">Display Name</th>
+              <th className="px-4 py-3 text-left font-medium">Role</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
             {items.map((profile) => (
-              <tr key={profile.id}>
-                <td className="px-3 py-2 font-mono text-xs">{profile.id}</td>
-                <td className="px-3 py-2">{profile.display_name || "-"}</td>
-                <td className="px-3 py-2">
-                  <select
+              <tr key={profile.id} className="hover:bg-slate-50/80">
+                <td className="px-4 py-3 font-mono text-xs">{profile.id}</td>
+                <td className="px-4 py-3">{profile.display_name || "-"}</td>
+                <td className="px-4 py-3">
+                  <Select
                     value={profile.role}
                     disabled={savingId === profile.id}
-                    className="rounded-md border border-slate-300 px-2 py-1"
+                    className="max-w-[180px]"
                     onChange={(e) => updateRole(profile.id, e.target.value as ProfileRole)}
                   >
                     {roles.map((role) => (
@@ -61,13 +63,13 @@ export function UserRoleManager({ profiles }: UserRoleManagerProps) {
                         {role}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-      </div>
+      </Card>
     </div>
   );
 }

@@ -18,9 +18,9 @@ export default async function UsersPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-semibold">User Roles</h1>
-      <p className="text-sm text-slate-600">Admin-only page to change profile roles.</p>
-      {error ? <p className="text-sm text-red-600">{error.message}</p> : null}
+      <h1 className="text-2xl font-semibold tracking-tight">User roles</h1>
+      <p className="text-sm text-slate-600">Admin-only page to manage roles in the profiles table.</p>
+      {error ? <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error.message}</p> : null}
       <UserRoleManager profiles={profiles || []} />
     </div>
   );
