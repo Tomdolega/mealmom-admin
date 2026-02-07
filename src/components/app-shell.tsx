@@ -21,7 +21,7 @@ export function AppShell({ role, displayName, children }: AppShellProps) {
           </div>
           <div className="ml-4 flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1">
             <NavLink href="/dashboard">Dashboard</NavLink>
-            <NavLink href="/recipes/new">New Recipe</NavLink>
+            {role !== "reviewer" ? <NavLink href="/recipes/new">New Recipe</NavLink> : null}
             <NavLink href="/settings">Settings</NavLink>
             {role === "admin" ? <NavLink href="/import">Import</NavLink> : null}
             {role === "admin" ? <NavLink href="/users">Users</NavLink> : null}

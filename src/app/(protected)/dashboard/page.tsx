@@ -34,7 +34,7 @@ function buildHref(params: URLSearchParams, updates: Record<string, string | nul
 }
 
 export default async function DashboardPage({ searchParams }: DashboardProps) {
-  const { supabase, session } = await getCurrentProfileOrRedirect();
+  const { supabase, session, profile } = await getCurrentProfileOrRedirect();
   const params = await searchParams;
 
   const { data: appSettings } = await supabase
@@ -205,11 +205,13 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
                         Open
                       </Button>
                     </Link>
-                    <Link href={`/recipes/${recipe.id}/translations`}>
-                      <Button type="button" variant="ghost" size="sm">
-                        Translations
-                      </Button>
-                    </Link>
+                    {profile.role !== "reviewer" ? (
+                      <Link href={`/recipes/${recipe.id}/translations`}>
+                        <Button type="button" variant="ghost" size="sm">
+                          Translations
+                        </Button>
+                      </Link>
+                    ) : null}
                   </div>
                 </td>
               </tr>

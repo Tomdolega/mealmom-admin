@@ -1,4 +1,5 @@
 import { RecipeForm } from "@/components/recipe-form";
+import { notFound } from "next/navigation";
 import { getCurrentProfileOrRedirect } from "@/lib/auth";
 import { normalizeAppSettings } from "@/lib/settings";
 import type { AppSettingsRecord } from "@/lib/types";
@@ -10,6 +11,10 @@ type NewRecipeProps = {
 export default async function NewRecipePage({ searchParams }: NewRecipeProps) {
   const { profile, supabase } = await getCurrentProfileOrRedirect();
   const params = await searchParams;
+
+  if (profile.role === "reviewer") {
+    notFound();
+  }
 
   const { data: appSettings } = await supabase
     .from("app_settings")
