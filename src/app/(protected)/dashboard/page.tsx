@@ -6,6 +6,11 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { getCurrentProfileOrRedirect } from "@/lib/auth";
+import {
+  applyDashboardRecipeListFilters,
+  DASHBOARD_RECIPE_LIST_COLUMNS,
+  type DashboardRecipeListRow,
+} from "@/lib/dashboard-recipe-list";
 import { getRecipeStatusLabel } from "@/lib/recipe-status";
 import { normalizeAppSettings } from "@/lib/settings";
 import { getServerUILang, tr } from "@/lib/ui-language.server";
@@ -67,21 +72,28 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
   const enabledLanguages = normalizedSettings.enabled_languages;
   const recentRecipes = recentRes.data || [];
 
-  let query = supabase
+  const listDebugId = `dash-list-${session.user.id.slice(0, 8)}-${params.status || "all"}-${params.language || "all"}`;
+  const baseListQuery = supabase
     .from("recipes")
-    .select(
-      "id, translation_group_id, language, title, subtitle, status, primary_cuisine, cuisines, tags, servings, total_minutes, difficulty, image_urls, ingredients, steps, created_by, updated_by, created_at, updated_at, published_at",
-    )
+    .select(DASHBOARD_RECIPE_LIST_COLUMNS)
     .order("updated_at", { ascending: false })
     .limit(100);
-
-  if (params.status) query = query.eq("status", params.status);
-  if (params.language) query = query.eq("language", params.language);
-  if (params.cuisine) query = query.or(`primary_cuisine.eq.${params.cuisine},cuisines.cs.{${params.cuisine}}`);
-  if (params.search) query = query.ilike("title", `%${params.search}%`);
-  if (params.mine === "1") query = query.eq("created_by", session.user.id).eq("status", "draft");
-
-  const { data: recipes, error } = await query.returns<RecipeRecord[]>();
+  const listQuery = applyDashboardRecipeListFilters(baseListQuery, params, session.user.id);
+  const { data: recipes, error } = await listQuery.returns<DashboardRecipeListRow[]>();
+  if (error) {
+    console.error(`[${listDebugId}] Dashboard recipe list query failed`, {
+      message: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint,
+      filters: params,
+    });
+    if (process.env.NODE_ENV !== "production" && draftCount + reviewCount + publishedCount > 0) {
+      console.warn(
+        `[${listDebugId}] Dashboard invariant: summary counters are non-zero, but list query failed.`,
+      );
+    }
+  }
   const translationGroupIds = [...new Set((recipes || []).map((recipe) => recipe.translation_group_id))];
 
   const translationMap = new Map<string, string[]>();
@@ -239,7 +251,12 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
           </div>
         </form>
 
-        {error ? <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{tr(lang, "Could not load recipes. Please try again.", "Nie udało się pobrać przepisów. Spróbuj ponownie.")}</p> : null}
+        {error ? (
+          <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+            {tr(lang, "Could not load recipes. Please try again.", "Nie udało się pobrać przepisów. Spróbuj ponownie.")}{" "}
+            <span className="font-mono text-xs text-red-600/80">({tr(lang, "debug id", "debug id")}: {listDebugId})</span>
+          </p>
+        ) : null}
 
         <Card className="overflow-x-auto p-0">
           <table className="min-w-full divide-y divide-slate-200 text-sm">
@@ -258,7 +275,7 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
                 <tr key={recipe.id} className="hover:bg-slate-50/80">
                   <td className="px-4 py-3">
                     <p className="font-medium text-slate-900">{recipe.title}</p>
-                    <p className="text-xs text-slate-500">{recipe.subtitle || recipe.language}</p>
+                    <p className="text-xs text-slate-500">{recipe.language}</p>
                   </td>
                   <td className="px-4 py-3">
                     <StatusBadge status={recipe.status} lang={lang} />
