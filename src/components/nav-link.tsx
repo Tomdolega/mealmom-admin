@@ -16,8 +16,8 @@ export function NavLink({ href, children }: NavLinkProps) {
   return (
     <Link
       className={cn(
-        "relative px-2.5 py-2 text-sm font-medium transition",
-        isActive ? "text-slate-900" : "text-slate-500 hover:text-slate-800",
+        "relative rounded-md px-2.5 py-2 text-sm font-medium transition",
+        isActive ? "bg-white/70 text-slate-900 shadow-sm" : "text-slate-500 hover:bg-white/50 hover:text-slate-800",
       )}
       href={href}
     >
@@ -25,7 +25,7 @@ export function NavLink({ href, children }: NavLinkProps) {
       <span
         className={cn(
           "absolute inset-x-2 -bottom-[1px] h-[2px] rounded-full transition-opacity",
-          isActive ? "bg-slate-900 opacity-100" : "bg-transparent opacity-0",
+          isActive ? "bg-sky-500/80 opacity-100" : "bg-transparent opacity-0",
         )}
       />
     </Link>

@@ -7,7 +7,12 @@ type CardProps = {
 
 export function Card({ children, className }: CardProps) {
   return (
-    <section className={cn("rounded-xl border border-slate-200/80 bg-white/95 p-5", className)}>
+    <section
+      className={cn(
+        "rounded-2xl border border-white/60 bg-white/65 p-5 shadow-[0_10px_30px_-18px_rgba(15,23,42,0.28)] backdrop-blur-xl",
+        className,
+      )}
+    >
       {children}
     </section>
   );

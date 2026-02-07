@@ -3,9 +3,10 @@
 body {
   font-family: var(--font-geist), sans-serif;
   background:
-    radial-gradient(1200px 700px at 10% -10%, rgba(125, 211, 252, 0.25), transparent 60%),
-    radial-gradient(900px 600px at 100% 0%, rgba(216, 180, 254, 0.2), transparent 55%),
-    linear-gradient(180deg, #f8fafc 0%, #f3f5f9 100%);
+    radial-gradient(1200px 700px at 8% -10%, rgba(56, 189, 248, 0.3), transparent 62%),
+    radial-gradient(880px 620px at 100% 0%, rgba(99, 102, 241, 0.2), transparent 58%),
+    radial-gradient(760px 520px at 48% 100%, rgba(45, 212, 191, 0.14), transparent 60%),
+    linear-gradient(180deg, #f3f6fb 0%, #eef3f9 100%);
   color: #0f172a;
   min-height: 100vh;
 }
@@ -16,28 +17,38 @@ body::after {
   position: fixed;
   z-index: -1;
   pointer-events: none;
-  filter: blur(48px);
-  opacity: 0.55;
+  filter: blur(60px);
+  opacity: 0.62;
 }
 
 body::before {
-  width: 360px;
-  height: 360px;
+  width: 420px;
+  height: 420px;
   border-radius: 9999px;
-  background: rgba(56, 189, 248, 0.2);
-  top: 12%;
-  left: 62%;
-  animation: driftA 16s ease-in-out infinite alternate;
+  background: rgba(59, 130, 246, 0.22);
+  top: 9%;
+  left: 58%;
+  animation: driftA 18s ease-in-out infinite alternate;
 }
 
 body::after {
-  width: 320px;
-  height: 320px;
+  width: 360px;
+  height: 360px;
   border-radius: 9999px;
-  background: rgba(192, 132, 252, 0.18);
-  top: 58%;
-  left: 8%;
-  animation: driftB 18s ease-in-out infinite alternate;
+  background: rgba(20, 184, 166, 0.2);
+  top: 54%;
+  left: 10%;
+  animation: driftB 20s ease-in-out infinite alternate;
+}
+
+body > div::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.26), transparent 45%);
+  mix-blend-mode: screen;
 }
 
 @keyframes driftA {

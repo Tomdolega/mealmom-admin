@@ -24,8 +24,8 @@ type AppShellProps = {
 export function AppShell({ role, displayName, lang, labels, children }: AppShellProps) {
   return (
     <div className="min-h-screen text-slate-900">
-      <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/70 backdrop-blur-xl">
-        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-6 px-4 sm:px-6 lg:px-8">
+      <header className="sticky top-0 z-20 border-b border-white/60 bg-white/55 backdrop-blur-2xl">
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-6 px-4 sm:px-6 lg:px-8">
           <div className="min-w-0">
             <p className="text-sm font-semibold tracking-tight text-slate-900">MealMom Admin</p>
             <p className="truncate text-xs text-slate-500">
@@ -33,7 +33,7 @@ export function AppShell({ role, displayName, lang, labels, children }: AppShell
             </p>
           </div>
 
-          <nav className="flex min-w-0 flex-1 items-center justify-center gap-1 border-x border-slate-200 px-4">
+          <nav className="flex min-w-0 flex-1 items-center justify-center gap-1 border-x border-white/60 px-4">
             <NavLink href="/dashboard">{labels.dashboard}</NavLink>
             {role !== "reviewer" ? <NavLink href="/recipes/new">{labels.newRecipe}</NavLink> : null}
             <NavLink href="/settings">{labels.settings}</NavLink>
