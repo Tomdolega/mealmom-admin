@@ -28,6 +28,23 @@ type RecipeFormProps = {
 };
 
 type SaveKind = "manual" | "autosave";
+type SaveToast = { type: "success" | "error"; message: string } | null;
+type RecipePayload = {
+  translation_group_id?: string;
+  language: string;
+  title: string;
+  subtitle: string | null;
+  status: RecipeStatus;
+  primary_cuisine: string | null;
+  cuisines: string[];
+  tags: string[];
+  servings: number | null;
+  total_minutes: number | null;
+  difficulty: string | null;
+  image_urls: string[];
+  ingredients: ReturnType<typeof normalizeIngredients>;
+  steps: ReturnType<typeof normalizeSteps>;
+};
 
 function statusOptionsForRole(role: ProfileRole, mode: "create" | "edit", currentStatus: RecipeStatus) {
   if (role === "admin") return allStatuses;
@@ -70,6 +87,13 @@ function formatLastSaved(value: string | null, lang: "en" | "pl") {
   return new Date(value).toLocaleString();
 }
 
+function formatSupabaseError(error: { message: string; details?: string | null; hint?: string | null }) {
+  const parts = [error.message];
+  if (error.details) parts.push(`Details: ${error.details}`);
+  if (error.hint) parts.push(`Hint: ${error.hint}`);
+  return parts.join(" ");
+}
+
 export function RecipeForm({
   mode,
   role,
@@ -110,6 +134,9 @@ export function RecipeForm({
   const [uploadingImages, setUploadingImages] = useState(false);
   const [autoSaveEnabled, setAutoSaveEnabled] = useState(role === "admin" || role === "editor");
   const [error, setError] = useState<string | null>(null);
+  const [toast, setToast] = useState<SaveToast>(null);
+  const [lastPayloadDebug, setLastPayloadDebug] = useState<Record<string, unknown> | null>(null);
+  const [lastErrorDebug, setLastErrorDebug] = useState<Record<string, unknown> | null>(null);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(recipe?.updated_at || null);
   const [lastSavedSnapshot, setLastSavedSnapshot] = useState<string>(() =>
     JSON.stringify({
@@ -136,21 +163,18 @@ export function RecipeForm({
   const allowedStatuses = useMemo(() => statusOptionsForRole(role, mode, recipe?.status || status), [mode, recipe?.status, role, status]);
   const availableCuisineOptions = enabledCuisines.filter((item) => !selectedCuisines.includes(item));
 
-  const payload = useMemo(
+  const basePayload = useMemo(
     () => ({
       translation_group_id: recipe?.translation_group_id || translationGroupId,
       language: recipeLanguage,
-      title,
-      subtitle: subtitle || null,
+      title: title.trim(),
+      subtitle: subtitle.trim() || null,
       status,
       primary_cuisine: primaryCuisine || null,
       cuisines: selectedCuisines,
-      tags: tagsText
-        .split(",")
-        .map((c) => c.trim())
-        .filter(Boolean),
-      servings: servings ? Number(servings) : null,
-      total_minutes: totalMinutes ? Number(totalMinutes) : null,
+      tags: tagsText,
+      servings: servings,
+      total_minutes: totalMinutes,
       difficulty: difficulty || null,
       image_urls: imageUrls,
       ingredients: normalizeIngredients(ingredients),
@@ -175,7 +199,80 @@ export function RecipeForm({
     ],
   );
 
-  const currentSnapshot = useMemo(() => JSON.stringify(payload), [payload]);
+  const validatePayload = useCallback(
+    (candidate: typeof basePayload): { payload: RecipePayload | null; message?: string } => {
+      const nextLanguage = candidate.language.trim();
+      const nextStatus = candidate.status;
+      const nextTitle = candidate.title.trim();
+      const nextCuisines = Array.isArray(candidate.cuisines)
+        ? [...new Set(candidate.cuisines.map((item) => item.trim()).filter(Boolean))]
+        : [];
+      const nextTags = String(candidate.tags || "")
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+      const nextIngredients = Array.isArray(candidate.ingredients) ? candidate.ingredients : [];
+      const nextSteps = Array.isArray(candidate.steps) ? candidate.steps : [];
+      const nextImageUrls = Array.isArray(candidate.image_urls)
+        ? candidate.image_urls.map((item) => item.trim()).filter(Boolean)
+        : [];
+
+      const servingsNumber =
+        candidate.servings && String(candidate.servings).trim() !== ""
+          ? Number(candidate.servings)
+          : null;
+      const totalMinutesNumber =
+        candidate.total_minutes && String(candidate.total_minutes).trim() !== ""
+          ? Number(candidate.total_minutes)
+          : null;
+
+      if (!nextTitle) {
+        return { payload: null, message: tt("Title is required.", "Tytuł jest wymagany.") };
+      }
+      if (!enabledLanguages.includes(nextLanguage)) {
+        return { payload: null, message: tt("Language must be selected from enabled languages.", "Język musi być wybrany z aktywnych języków.") };
+      }
+      if (!allStatuses.includes(nextStatus)) {
+        return { payload: null, message: tt("Invalid recipe status.", "Nieprawidłowy status przepisu.") };
+      }
+      if (servingsNumber !== null && !Number.isFinite(servingsNumber)) {
+        return { payload: null, message: tt("Servings must be a number or empty.", "Porcje muszą być liczbą lub puste.") };
+      }
+      if (totalMinutesNumber !== null && !Number.isFinite(totalMinutesNumber)) {
+        return { payload: null, message: tt("Total minutes must be a number or empty.", "Czas całkowity musi być liczbą lub pusty.") };
+      }
+
+      const payload: RecipePayload = {
+        language: nextLanguage,
+        title: nextTitle,
+        subtitle: candidate.subtitle,
+        status: nextStatus,
+        primary_cuisine: candidate.primary_cuisine || null,
+        cuisines: nextCuisines,
+        tags: nextTags,
+        servings: servingsNumber,
+        total_minutes: totalMinutesNumber,
+        difficulty: candidate.difficulty,
+        image_urls: nextImageUrls,
+        ingredients: nextIngredients,
+        steps: nextSteps,
+      };
+
+      if (candidate.translation_group_id) {
+        payload.translation_group_id = candidate.translation_group_id;
+      }
+
+      return { payload };
+    },
+    [enabledLanguages, tt],
+  );
+
+  const normalizedPayload = useMemo(() => {
+    const result = validatePayload(basePayload);
+    return result.payload;
+  }, [basePayload, validatePayload]);
+
+  const currentSnapshot = useMemo(() => JSON.stringify(normalizedPayload || {}), [normalizedPayload]);
   const isDirty = currentSnapshot !== lastSavedSnapshot;
 
   const saveRecipe = useCallback(
@@ -184,7 +281,20 @@ export function RecipeForm({
         return;
       }
 
+      const validation = validatePayload(basePayload);
+      if (!validation.payload) {
+        setError(validation.message || tt("Could not validate recipe payload.", "Nie udało się zwalidować danych przepisu."));
+        setToast({
+          type: "error",
+          message: validation.message || tt("Could not validate recipe payload.", "Nie udało się zwalidować danych przepisu."),
+        });
+        return;
+      }
+      const payload = validation.payload;
+
       setError(null);
+      setLastErrorDebug(null);
+      setLastPayloadDebug(payload);
       if (kind === "autosave") {
         setIsAutoSaving(true);
       } else {
@@ -210,12 +320,94 @@ export function RecipeForm({
       }
 
       if (result.error) {
-        setError(tt("Could not save this recipe. Check required fields and try again.", "Nie udało się zapisać przepisu. Sprawdź wymagane pola i spróbuj ponownie."));
+        const debugError = {
+          message: result.error.message,
+          details: result.error.details,
+          hint: result.error.hint,
+          code: result.error.code,
+        };
+        console.error("Recipe save failed", { error: result.error, data: result.data, payload });
+        const fullErrorMessage = formatSupabaseError(result.error);
+        setLastErrorDebug(debugError);
+        setError(fullErrorMessage);
+        setToast({ type: "error", message: fullErrorMessage });
         return;
       }
 
-      setLastSavedSnapshot(JSON.stringify(payload));
-      setLastSavedAt(result.data.updated_at || new Date().toISOString());
+      let refreshedRecipe: RecipeRecord | null = null;
+      if (result.data?.id) {
+        const refetch = await supabase
+          .from("recipes")
+          .select(
+            "id, translation_group_id, language, title, subtitle, status, primary_cuisine, cuisines, tags, servings, total_minutes, difficulty, image_urls, ingredients, steps, created_by, updated_by, created_at, updated_at, published_at",
+          )
+          .eq("id", result.data.id)
+          .maybeSingle<RecipeRecord>();
+
+        if (refetch.error) {
+          console.error("Recipe refetch after save failed", {
+            error: refetch.error,
+            recipeId: result.data.id,
+          });
+        } else if (refetch.data) {
+          refreshedRecipe = refetch.data;
+          setTitle(refreshedRecipe.title || "");
+          setSubtitle(refreshedRecipe.subtitle || "");
+          setRecipeLanguage(refreshedRecipe.language || defaultLanguage || enabledLanguages[0] || "en");
+          setStatus(refreshedRecipe.status);
+          setPrimaryCuisine(refreshedRecipe.primary_cuisine || "");
+          setSelectedCuisines(Array.isArray(refreshedRecipe.cuisines) ? refreshedRecipe.cuisines : []);
+          setTagsText(Array.isArray(refreshedRecipe.tags) ? refreshedRecipe.tags.join(", ") : "");
+          setServings(
+            typeof refreshedRecipe.servings === "number" && Number.isFinite(refreshedRecipe.servings)
+              ? String(refreshedRecipe.servings)
+              : "",
+          );
+          setTotalMinutes(
+            typeof refreshedRecipe.total_minutes === "number" && Number.isFinite(refreshedRecipe.total_minutes)
+              ? String(refreshedRecipe.total_minutes)
+              : "",
+          );
+          setDifficulty(refreshedRecipe.difficulty || "");
+          setImageUrls(Array.isArray(refreshedRecipe.image_urls) ? refreshedRecipe.image_urls : []);
+          setIngredients(
+            Array.isArray(refreshedRecipe.ingredients) && refreshedRecipe.ingredients.length > 0
+              ? refreshedRecipe.ingredients
+              : [{ name: "", amount: "", unit: "", note: "" }],
+          );
+          setSteps(
+            Array.isArray(refreshedRecipe.steps) && refreshedRecipe.steps.length > 0
+              ? refreshedRecipe.steps
+              : [{ step_number: 1, text: "", timer_seconds: null }],
+          );
+          setLastSavedSnapshot(
+            JSON.stringify({
+              ...payload,
+              ...{
+                language: refreshedRecipe.language,
+                title: refreshedRecipe.title,
+                subtitle: refreshedRecipe.subtitle,
+                status: refreshedRecipe.status,
+                primary_cuisine: refreshedRecipe.primary_cuisine,
+                cuisines: refreshedRecipe.cuisines,
+                tags: refreshedRecipe.tags,
+                servings: refreshedRecipe.servings,
+                total_minutes: refreshedRecipe.total_minutes,
+                difficulty: refreshedRecipe.difficulty,
+                image_urls: refreshedRecipe.image_urls,
+                ingredients: refreshedRecipe.ingredients,
+                steps: refreshedRecipe.steps,
+              },
+            }),
+          );
+          setLastSavedAt(refreshedRecipe.updated_at || new Date().toISOString());
+        }
+      }
+
+      if (!refreshedRecipe) {
+        setLastSavedSnapshot(JSON.stringify(payload));
+        setLastSavedAt(result.data.updated_at || new Date().toISOString());
+      }
 
       if (mode === "create") {
         router.push(`/recipes/${result.data.id}`);
@@ -224,10 +416,27 @@ export function RecipeForm({
       }
 
       if (kind === "manual") {
+        setToast({
+          type: "success",
+          message: tt("Recipe saved.", "Przepis zapisany."),
+        });
         router.refresh();
       }
     },
-    [autoSaveEnabled, canAutoSave, isDirty, mode, payload, recipe, router, status, tt],
+    [
+      autoSaveEnabled,
+      basePayload,
+      canAutoSave,
+      defaultLanguage,
+      enabledLanguages,
+      isDirty,
+      mode,
+      recipe,
+      router,
+      status,
+      tt,
+      validatePayload,
+    ],
   );
 
   useEffect(() => {
@@ -243,6 +452,12 @@ export function RecipeForm({
       clearTimeout(timeoutId);
     };
   }, [autoSaveEnabled, canAutoSave, isAutoSaving, isDirty, saveRecipe, status, submitting]);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timeoutId = setTimeout(() => setToast(null), 5000);
+    return () => clearTimeout(timeoutId);
+  }, [toast]);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -541,11 +756,40 @@ export function RecipeForm({
 
       {error ? <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
 
-      <div className="flex items-center justify-end">
-        <Button disabled={submitting || isAutoSaving} type="submit">
-          {submitting ? tt("Saving...", "Zapisywanie...") : tt("Save recipe", "Zapisz przepis")}
-        </Button>
+      <div className="space-y-3">
+        <div className="flex items-center justify-end">
+          <Button disabled={submitting || isAutoSaving} type="submit">
+            {submitting ? tt("Saving...", "Zapisywanie...") : tt("Save recipe", "Zapisz przepis")}
+          </Button>
+        </div>
+
+        {process.env.NODE_ENV !== "production" ? (
+          <section className="rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
+            <p className="mb-2 font-semibold">{tt("Debug panel (dev only)", "Panel debug (tylko dev)")}</p>
+            <details>
+              <summary className="cursor-pointer font-medium">{tt("Last payload JSON", "Ostatni payload JSON")}</summary>
+              <pre className="mt-2 overflow-auto rounded bg-white p-2">{JSON.stringify(lastPayloadDebug, null, 2)}</pre>
+            </details>
+            <details className="mt-2">
+              <summary className="cursor-pointer font-medium">{tt("Last error JSON", "Ostatni błąd JSON")}</summary>
+              <pre className="mt-2 overflow-auto rounded bg-white p-2">{JSON.stringify(lastErrorDebug, null, 2)}</pre>
+            </details>
+          </section>
+        ) : null}
       </div>
+
+      {toast ? (
+        <div
+          className={
+            toast.type === "error"
+              ? "fixed right-4 top-4 z-50 max-w-xl rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 shadow-md"
+              : "fixed right-4 top-4 z-50 max-w-xl rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 shadow-md"
+          }
+          role="status"
+        >
+          {toast.message}
+        </div>
+      ) : null}
     </form>
   );
 }
