@@ -39,7 +39,7 @@ export default async function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4">
+    <div className="flex min-h-screen items-center justify-center px-4 py-6 sm:py-10">
       <Card className="w-full max-w-md bg-white/70 backdrop-blur-xl">
         <h1 className="mb-1 text-2xl font-semibold">Culinae Admin</h1>
         <p className="mb-5 text-sm text-slate-600">

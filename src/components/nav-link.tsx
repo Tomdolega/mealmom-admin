@@ -16,7 +16,7 @@ export function NavLink({ href, children }: NavLinkProps) {
   return (
     <Link
       className={cn(
-        "relative rounded-md px-2.5 py-2 text-sm font-medium transition",
+        "relative inline-flex h-10 items-center rounded-md px-3 text-sm font-medium transition whitespace-nowrap",
         isActive ? "bg-white/70 text-slate-900 shadow-sm" : "text-slate-500 hover:bg-white/50 hover:text-slate-800",
       )}
       href={href}

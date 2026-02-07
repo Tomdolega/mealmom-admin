@@ -12,10 +12,10 @@ export function LanguageSwitcher({ lang, label }: LanguageSwitcherProps) {
   const router = useRouter();
 
   return (
-    <label className="inline-flex items-center gap-2 text-xs text-slate-600">
+    <label className="inline-flex items-center gap-2 text-sm text-slate-600">
       <span>{label}</span>
       <select
-        className="h-8 rounded-md border border-slate-300/80 bg-white/90 px-2 text-xs text-slate-700 shadow-sm outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+        className="h-10 rounded-md border border-slate-300/80 bg-white/90 px-3 text-sm text-slate-700 shadow-sm outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
         value={lang}
         onChange={(event) => {
           const next = event.target.value as UILang;
