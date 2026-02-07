@@ -10,12 +10,22 @@ Next.js (App Router) + Supabase admin panel for recipe entry, review workflow, p
 - Translation support via `translation_group_id`
 - Cuisine model: `primary_cuisine` plus `cuisines[]`
 - Form-based ingredients/steps editor (no raw JSON editing)
+- Recipe editor quality of life:
+  - Auto-save draft toggle (default on for admin/editor)
+  - Debounced draft auto-save (1200ms)
+  - Explicit Save button
+  - Unsaved changes + last saved timestamp indicator
+- Reviewer restrictions:
+  - Reviewers can open recipes
+  - Reviewers can only change status from `in_review -> published` or `in_review -> draft`
+  - Recipe content fields are read-only for reviewers
+  - Enforced in both UI and DB policies/triggers
 - Dashboard quick filters, status badges, and export published pack
 - Settings page:
   - Global app settings (admin): default/enabled languages + enabled cuisines
   - Per-user preferences: preferred language, ordered preferred cuisines, UI density
   - Connection status widget for Supabase health check
-- Admin-only import page for CSV/XLSX with validation + preview + error report
+- Admin-only import page for CSV/XLSX with validation + dry run + diff-like preview + error report CSV
 
 ## Environment Variables
 
@@ -47,10 +57,11 @@ npm run build
 
 ## Supabase SQL Setup
 
-Run both SQL files in order:
+Run SQL files in order:
 
 1. `supabase/schema.sql`
 2. `supabase/002_settings_and_import.sql`
+3. `supabase/003_reviewer_workflow_and_audit_hardening.sql`
 
 In Supabase Dashboard SQL Editor, paste and run each file.
 
@@ -88,6 +99,7 @@ Minimum supported columns:
 
 Optional columns:
 
+- `id` (if provided, upsert by `id`)
 - `subtitle`
 - `translation_group_id`
 
@@ -98,13 +110,17 @@ title,language,status,primary_cuisine,cuisines,tags,servings,total_minutes,diffi
 Tomato Soup,en,draft,Polish,"Polish,Italian","quick,vegetarian",4,35,easy,"Simple and warm","[{""name"":""Tomato"",""amount"":""6"",""unit"":""pcs"",""note"":""ripe""}]","[{""step_number"":1,""text"":""Chop tomatoes"",""timer_seconds"":120}]"
 ```
 
-On import, the app validates rows, inserts valid rows, and downloads `recipe-import-errors.csv` when failures occur.
+Import notes:
+
+- Dry run validates and reports errors without inserting rows.
+- For real import, valid rows are upserted in chunks for better performance.
+- If any rows fail, `recipe-import-errors.csv` is downloaded.
 
 ## Main Routes
 
 - `/login` email/password sign in
 - `/dashboard` recipes list + filters + export
-- `/recipes/new` create recipe
+- `/recipes/new` create recipe (admin/editor)
 - `/recipes/[id]` edit recipe
 - `/recipes/[id]/translations` manage translation variants
 - `/settings` personalization + app checks
