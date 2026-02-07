@@ -1,8 +1,13 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { ProfileRecord, ProfileRole } from "@/lib/types";
+import { hasSupabaseEnv } from "@/lib/supabase/env";
 
 export async function getSessionOrRedirect() {
+  if (!hasSupabaseEnv()) {
+    redirect("/login?error=env_missing");
+  }
+
   const supabase = await createClient();
   const {
     data: { session },

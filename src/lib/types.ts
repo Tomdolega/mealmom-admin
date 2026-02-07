@@ -1,5 +1,6 @@
 export type ProfileRole = "admin" | "editor" | "reviewer";
 export type RecipeStatus = "draft" | "in_review" | "published" | "archived";
+export type UiDensity = "comfortable" | "compact";
 
 export type IngredientItem = {
   name: string;
@@ -40,6 +41,24 @@ export type ProfileRecord = {
   id: string;
   display_name: string | null;
   role: ProfileRole;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AppSettingsRecord = {
+  id: number;
+  default_language: string;
+  enabled_languages: string[];
+  enabled_cuisines: string[];
+  created_at: string;
+  updated_at: string;
+};
+
+export type UserSettingsRecord = {
+  user_id: string;
+  preferred_language: string | null;
+  preferred_cuisines: string[];
+  ui_density: UiDensity;
   created_at: string;
   updated_at: string;
 };

@@ -3,6 +3,9 @@
 import { FormEvent, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { Button } from "@/components/ui/button";
+import { FormField } from "@/components/ui/form-field";
+import { Input } from "@/components/ui/input";
 
 export function LoginForm() {
   const router = useRouter();
@@ -12,9 +15,10 @@ export function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const queryError = searchParams.get("error") === "profile_missing"
-    ? "Your account has no profile row yet. Ask an admin to create or sync your profile."
-    : null;
+  const queryError =
+    searchParams.get("error") === "profile_missing"
+      ? "Your account has no profile row yet. Ask an admin to create or sync your profile."
+      : null;
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -40,43 +44,32 @@ export function LoginForm() {
 
   return (
     <form className="space-y-4" onSubmit={handleSubmit}>
-      <div>
-        <label className="mb-1 block text-sm font-medium" htmlFor="email">
-          Email
-        </label>
-        <input
+      <FormField label="Email">
+        <Input
           id="email"
           type="email"
           required
-          className="w-full rounded-md border border-slate-300 px-3 py-2"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
+          placeholder="you@company.com"
         />
-      </div>
-      <div>
-        <label className="mb-1 block text-sm font-medium" htmlFor="password">
-          Password
-        </label>
-        <input
+      </FormField>
+      <FormField label="Password">
+        <Input
           id="password"
           type="password"
           required
-          className="w-full rounded-md border border-slate-300 px-3 py-2"
           value={password}
           onChange={(event) => setPassword(event.target.value)}
         />
-      </div>
+      </FormField>
 
-      {queryError ? <p className="text-sm text-amber-600">{queryError}</p> : null}
-      {error ? <p className="text-sm text-red-600">{error}</p> : null}
+      {queryError ? <p className="rounded-lg bg-amber-50 p-2 text-sm text-amber-700">{queryError}</p> : null}
+      {error ? <p className="rounded-lg bg-red-50 p-2 text-sm text-red-700">{error}</p> : null}
 
-      <button
-        type="submit"
-        disabled={loading}
-        className="w-full rounded-md bg-slate-900 px-3 py-2 text-white disabled:opacity-60"
-      >
+      <Button type="submit" disabled={loading} className="w-full">
         {loading ? "Signing in..." : "Sign in"}
-      </button>
+      </Button>
     </form>
   );
 }
