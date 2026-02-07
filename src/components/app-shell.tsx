@@ -16,6 +16,7 @@ type AppShellProps = {
     users: string;
     language: string;
     signOut: string;
+    userDefault: string;
   };
   children: React.ReactNode;
 };
@@ -28,7 +29,7 @@ export function AppShell({ role, displayName, lang, labels, children }: AppShell
           <div className="min-w-0">
             <p className="text-sm font-semibold tracking-tight text-slate-900">MealMom Admin</p>
             <p className="truncate text-xs text-slate-500">
-              {displayName || "User"} · {role}
+              {displayName || labels.userDefault} · {role}
             </p>
           </div>
 

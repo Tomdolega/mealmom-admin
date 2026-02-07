@@ -13,6 +13,7 @@ export const uiDict: Record<
       users: string;
       language: string;
       signOut: string;
+      userDefault: string;
     };
   }
 > = {
@@ -25,6 +26,7 @@ export const uiDict: Record<
       users: "Users",
       language: "Language",
       signOut: "Sign out",
+      userDefault: "User",
     },
   },
   pl: {
@@ -36,6 +38,7 @@ export const uiDict: Record<
       users: "Użytkownicy",
       language: "Język",
       signOut: "Wyloguj",
+      userDefault: "Użytkownik",
     },
   },
 };
