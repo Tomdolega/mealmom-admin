@@ -22,7 +22,7 @@ export default async function RecipeEditPage({ params }: RecipeEditProps) {
     supabase
       .from("recipes")
       .select(
-        "id, translation_group_id, language, title, subtitle, status, primary_cuisine, cuisines, tags, servings, total_minutes, difficulty, ingredients, steps, created_by, updated_by, created_at, updated_at, published_at",
+        "id, translation_group_id, language, title, subtitle, status, primary_cuisine, cuisines, tags, servings, total_minutes, difficulty, image_urls, ingredients, steps, created_by, updated_by, created_at, updated_at, published_at",
       )
       .eq("id", id)
       .maybeSingle<RecipeRecord>(),
@@ -47,24 +47,29 @@ export default async function RecipeEditPage({ params }: RecipeEditProps) {
   const normalizedSettings = normalizeAppSettings(appSettings);
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Edit recipe</h1>
-        <Link href={`/recipes/${recipe.id}/translations`}>
-          <Button type="button" variant="secondary">
-            Manage translations
-          </Button>
-        </Link>
-      </div>
+    <div className="space-y-5">
+      <section className="rounded-xl border border-slate-200 bg-white p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Edit recipe</h1>
+            <p className="mt-1 text-sm text-slate-600">Update content, review status, and translation coverage.</p>
+          </div>
+          <Link href={`/recipes/${recipe.id}/translations`}>
+            <Button type="button" variant="secondary">
+              Manage translations
+            </Button>
+          </Link>
+        </div>
+      </section>
 
       <Card className="space-y-3">
-        <h2 className="text-lg font-semibold">Translations summary</h2>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Translations summary</h2>
         <div className="flex flex-wrap gap-2">
           {(translations || []).map((translation) => (
             <Link
               key={translation.id}
               href={`/recipes/${translation.id}`}
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+              className="inline-flex items-center gap-2 rounded-md bg-slate-50 px-2.5 py-1.5 text-sm text-slate-700 hover:bg-slate-100"
             >
               <span>{translation.language}</span>
               <StatusBadge status={translation.status} />

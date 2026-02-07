@@ -22,40 +22,34 @@ export function OrderedCuisinesEditor({ available, value, onChange }: OrderedCui
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-2">
-        <Select
-          defaultValue=""
-          onChange={(event) => {
-            const chosen = event.target.value;
-            if (!chosen) return;
-            onChange([...value, chosen]);
-            event.currentTarget.value = "";
-          }}
-        >
-          <option value="">Add cuisine...</option>
-          {remaining.map((cuisine) => (
-            <option key={cuisine} value={cuisine}>
-              {cuisine}
-            </option>
-          ))}
-        </Select>
-      </div>
+      <Select
+        defaultValue=""
+        onChange={(event) => {
+          const chosen = event.target.value;
+          if (!chosen) return;
+          onChange([...value, chosen]);
+          event.currentTarget.value = "";
+        }}
+      >
+        <option value="">Add cuisine to your ranking...</option>
+        {remaining.map((cuisine) => (
+          <option key={cuisine} value={cuisine}>
+            {cuisine}
+          </option>
+        ))}
+      </Select>
+
       <div className="space-y-2">
         {value.length === 0 ? <p className="text-sm text-slate-500">No cuisines selected yet.</p> : null}
         {value.map((cuisine, index) => (
-          <div key={cuisine} className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+          <div key={cuisine} className="flex items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
             <span className="text-sm text-slate-800">
               {index + 1}. {cuisine}
             </span>
             <div className="flex gap-1">
-              <Button type="button" variant="secondary" size="sm" onClick={() => move(index, "up")}>Up</Button>
-              <Button type="button" variant="secondary" size="sm" onClick={() => move(index, "down")}>Down</Button>
-              <Button
-                type="button"
-                variant="danger"
-                size="sm"
-                onClick={() => onChange(value.filter((item) => item !== cuisine))}
-              >
+              <Button type="button" variant="ghost" size="sm" onClick={() => move(index, "up")}>Up</Button>
+              <Button type="button" variant="ghost" size="sm" onClick={() => move(index, "down")}>Down</Button>
+              <Button type="button" variant="ghost" size="sm" className="text-red-600 hover:bg-red-50" onClick={() => onChange(value.filter((item) => item !== cuisine))}>
                 Remove
               </Button>
             </div>

@@ -5,7 +5,6 @@ import { useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { RecipeStatus } from "@/lib/types";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 
 const allowedStatuses: RecipeStatus[] = ["draft", "in_review", "published", "archived"];
@@ -95,9 +94,7 @@ export function ImportRecipesPanel({ enabledLanguages, enabledCuisines }: Import
   const [results, setResults] = useState<ValidationResult[]>([]);
   const [dryRun, setDryRun] = useState(true);
   const [isImporting, setIsImporting] = useState(false);
-  const [summary, setSummary] = useState<{ created: number; failed: number; dryRun: boolean; validated: number } | null>(
-    null,
-  );
+  const [summary, setSummary] = useState<{ created: number; failed: number; dryRun: boolean; validated: number } | null>(null);
   const [readError, setReadError] = useState<string | null>(null);
 
   function validateRows(sourceRows: ParsedRow[]) {
@@ -110,16 +107,16 @@ export function ImportRecipesPanel({ enabledLanguages, enabledCuisines }: Import
       const statusValue = (row.status?.trim() || "draft") as RecipeStatus;
       const primaryCuisine = row.primary_cuisine?.trim() || "";
 
-      if (!title) errors.push("title is required");
-      if (!language) errors.push("language is required");
+      if (!title) errors.push("Title is required.");
+      if (!language) errors.push("Language is required.");
       if (language && !enabledLanguages.includes(language)) {
-        errors.push(`language must be one of: ${enabledLanguages.join(", ")}`);
+        errors.push(`Language must be one of: ${enabledLanguages.join(", ")}.`);
       }
       if (!allowedStatuses.includes(statusValue)) {
-        errors.push(`status must be one of: ${allowedStatuses.join(", ")}`);
+        errors.push(`Status must be one of: ${allowedStatuses.join(", ")}.`);
       }
       if (primaryCuisine && !enabledCuisines.includes(primaryCuisine)) {
-        errors.push("primary_cuisine is not in enabled cuisines");
+        errors.push("Primary cuisine is not in enabled cuisines.");
       }
 
       let ingredients: unknown[] = [];
@@ -127,14 +124,14 @@ export function ImportRecipesPanel({ enabledLanguages, enabledCuisines }: Import
 
       try {
         ingredients = parseJsonArray(row.ingredients || "[]", "ingredients");
-      } catch (error) {
-        errors.push((error as Error).message);
+      } catch {
+        errors.push("Ingredients must be a valid JSON array.");
       }
 
       try {
         steps = parseJsonArray(row.steps || "[]", "steps");
-      } catch (error) {
-        errors.push((error as Error).message);
+      } catch {
+        errors.push("Steps must be a valid JSON array.");
       }
 
       const cuisines = parseList(row.cuisines || "");
@@ -142,7 +139,7 @@ export function ImportRecipesPanel({ enabledLanguages, enabledCuisines }: Import
 
       const invalidCuisine = cuisines.find((cuisine) => !enabledCuisines.includes(cuisine));
       if (invalidCuisine) {
-        errors.push(`cuisine '${invalidCuisine}' is not enabled`);
+        errors.push(`Cuisine '${invalidCuisine}' is not enabled.`);
       }
 
       const payload: ImportPayload = {
@@ -162,9 +159,9 @@ export function ImportRecipesPanel({ enabledLanguages, enabledCuisines }: Import
         translation_group_id: row.translation_group_id?.trim() || undefined,
       };
 
-      if (payload.servings !== null && Number.isNaN(payload.servings)) errors.push("servings must be a number");
+      if (payload.servings !== null && Number.isNaN(payload.servings)) errors.push("Servings must be a number.");
       if (payload.total_minutes !== null && Number.isNaN(payload.total_minutes)) {
-        errors.push("total_minutes must be a number");
+        errors.push("Total minutes must be a number.");
       }
 
       return { rowIndex, raw: row, errors, payload: errors.length ? undefined : payload };
@@ -195,7 +192,7 @@ export function ImportRecipesPanel({ enabledLanguages, enabledCuisines }: Import
       setRows(normalized);
       validateRows(normalized);
     } catch {
-      setReadError("Could not parse file. Use CSV or XLSX with a header row.");
+      setReadError("Could not read that file. Please use a CSV or XLSX file with a header row.");
       setRows([]);
       setResults([]);
       setSummary(null);
@@ -235,7 +232,7 @@ export function ImportRecipesPanel({ enabledLanguages, enabledCuisines }: Import
       for (const row of chunk) {
         const { error: rowError } = await supabase.from("recipes").upsert(row.payload!, { onConflict: "id" });
         if (rowError) {
-          failed.push({ ...row, errors: [rowError.message] });
+          failed.push({ ...row, errors: ["Could not import this row. Check values and role permissions."] });
         } else {
           created += 1;
         }
@@ -258,11 +255,27 @@ export function ImportRecipesPanel({ enabledLanguages, enabledCuisines }: Import
 
   return (
     <div className="space-y-4">
-      <Card className="space-y-3">
-        <div>
-          <h2 className="text-lg font-semibold">Upload file</h2>
-          <p className="text-sm text-slate-600">Supported formats: CSV and XLSX.</p>
-        </div>
+      <section className="rounded-xl border border-slate-200 bg-white p-5">
+        <h2 className="text-lg font-semibold text-slate-900">Import workflow</h2>
+        <p className="mt-1 text-sm text-slate-600">Upload a file, validate it, preview results, then confirm import.</p>
+
+        <ol className="mt-4 grid gap-3 text-sm md:grid-cols-4">
+          {[
+            ["Step 1", "Upload file"],
+            ["Step 2", "Validate rows"],
+            ["Step 3", "Review preview"],
+            ["Step 4", "Confirm import"],
+          ].map(([step, label]) => (
+            <li key={step} className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{step}</p>
+              <p className="mt-0.5 text-slate-700">{label}</p>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-5">
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Step 1: Upload</h3>
         <Input
           type="file"
           accept=".csv,.xlsx,.xls"
@@ -271,20 +284,20 @@ export function ImportRecipesPanel({ enabledLanguages, enabledCuisines }: Import
             if (file) void readFile(file);
           }}
         />
-        {fileName ? <p className="text-sm text-slate-600">Loaded: {fileName}</p> : null}
-        {readError ? <p className="text-sm text-red-700">{readError}</p> : null}
-
-        <label className="inline-flex items-center gap-2 text-sm text-slate-700">
-          <input
-            type="checkbox"
-            checked={dryRun}
-            onChange={(event) => setDryRun(event.target.checked)}
-            className="h-4 w-4 rounded border-slate-300"
-          />
-          Dry run (validate only, do not insert)
-        </label>
+        {fileName ? <p className="text-sm text-slate-600">Loaded file: {fileName}</p> : null}
+        {readError ? <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{readError}</p> : null}
 
         <div className="flex flex-wrap items-center gap-2">
+          <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              checked={dryRun}
+              onChange={(event) => setDryRun(event.target.checked)}
+              className="h-4 w-4 rounded border-slate-300"
+            />
+            Dry run only (validation without writing to database)
+          </label>
+
           <Button
             type="button"
             variant="secondary"
@@ -298,33 +311,24 @@ export function ImportRecipesPanel({ enabledLanguages, enabledCuisines }: Import
           >
             Download template CSV
           </Button>
-          <Button type="button" onClick={importRows} disabled={isImporting || (validCount === 0 && errorCount === 0)}>
-            {isImporting ? "Importing..." : dryRun ? `Run dry validation (${validCount} valid)` : `Import valid rows (${validCount})`}
-          </Button>
         </div>
-      </Card>
+      </section>
 
-      <Card className="space-y-2">
-        <h2 className="text-lg font-semibold">Validation</h2>
+      <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-5">
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Step 2: Validate</h3>
         <p className="text-sm text-slate-600">
-          Required fields: <code>title</code>, <code>language</code>, <code>status</code>. For complex fields,
-          use JSON arrays in cells for <code>ingredients</code> and <code>steps</code>.
+          Required fields: <code>title</code>, <code>language</code>, <code>status</code>. Use JSON arrays for
+          <code> ingredients</code> and <code>steps</code> cells.
         </p>
         <p className="text-sm text-slate-700">
-          Valid rows: {validCount} · Rows with errors: {errorCount}
+          Valid rows: {validCount} · Rows with issues: {errorCount}
         </p>
-        {summary ? (
-          <p className="text-sm text-slate-700">
-            {summary.dryRun
-              ? `Dry run complete. Validated rows: ${summary.validated}, errors: ${summary.failed}.`
-              : `Import complete. Created/updated: ${summary.created}, failed: ${summary.failed}.`}
-          </p>
-        ) : null}
-      </Card>
+      </section>
 
-      <Card className="space-y-3">
-        <h2 className="text-lg font-semibold">Diff-like preview (first 5 valid rows)</h2>
-        <div className="overflow-x-auto">
+      <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-5">
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Step 3: Preview</h3>
+        <p className="text-sm text-slate-600">First 5 valid rows shown in management view before import.</p>
+        <div className="overflow-x-auto rounded-md border border-slate-200">
           <table className="min-w-full divide-y divide-slate-200 text-sm">
             <thead className="bg-slate-50">
               <tr>
@@ -337,7 +341,7 @@ export function ImportRecipesPanel({ enabledLanguages, enabledCuisines }: Import
                 <th className="px-3 py-2 text-left font-medium">Steps</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200">
+            <tbody className="divide-y divide-slate-100">
               {validDiffPreview.map((item) => (
                 <tr key={`valid-preview-${item.rowIndex}`}>
                   <td className="px-3 py-2">{item.rowIndex}</td>
@@ -351,7 +355,7 @@ export function ImportRecipesPanel({ enabledLanguages, enabledCuisines }: Import
               ))}
               {validDiffPreview.length === 0 ? (
                 <tr>
-                  <td className="px-3 py-2 text-slate-500" colSpan={7}>
+                  <td className="px-3 py-6 text-sm text-slate-500" colSpan={7}>
                     No valid rows to preview yet.
                   </td>
                 </tr>
@@ -359,11 +363,29 @@ export function ImportRecipesPanel({ enabledLanguages, enabledCuisines }: Import
             </tbody>
           </table>
         </div>
-      </Card>
+      </section>
 
-      <Card className="space-y-3">
-        <h2 className="text-lg font-semibold">Preview (first 20 rows)</h2>
-        <div className="overflow-x-auto">
+      <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-5">
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Step 4: Confirm</h3>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" onClick={importRows} disabled={isImporting || (validCount === 0 && errorCount === 0)}>
+            {isImporting ? "Processing..." : dryRun ? `Run dry validation (${validCount} valid)` : `Import valid rows (${validCount})`}
+          </Button>
+          <span className="text-sm text-slate-500">Errors will be exported as CSV automatically.</span>
+        </div>
+
+        {summary ? (
+          <p className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-700">
+            {summary.dryRun
+              ? `Dry run complete. ${summary.validated} rows are valid and ${summary.failed} rows need corrections.`
+              : `Import complete. ${summary.created} rows were created/updated and ${summary.failed} rows failed.`}
+          </p>
+        ) : null}
+      </section>
+
+      <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-5">
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Row issues (first 20)</h3>
+        <div className="overflow-x-auto rounded-md border border-slate-200">
           <table className="min-w-full divide-y divide-slate-200 text-sm">
             <thead className="bg-slate-50">
               <tr>
@@ -371,10 +393,10 @@ export function ImportRecipesPanel({ enabledLanguages, enabledCuisines }: Import
                 <th className="px-3 py-2 text-left font-medium">Title</th>
                 <th className="px-3 py-2 text-left font-medium">Language</th>
                 <th className="px-3 py-2 text-left font-medium">Status</th>
-                <th className="px-3 py-2 text-left font-medium">Errors</th>
+                <th className="px-3 py-2 text-left font-medium">Issues</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200">
+            <tbody className="divide-y divide-slate-100">
               {previewRows.map((row, index) => {
                 const result = results[index];
                 return (
@@ -383,14 +405,21 @@ export function ImportRecipesPanel({ enabledLanguages, enabledCuisines }: Import
                     <td className="px-3 py-2">{row.title || "-"}</td>
                     <td className="px-3 py-2">{row.language || "-"}</td>
                     <td className="px-3 py-2">{row.status || "draft"}</td>
-                    <td className="px-3 py-2 text-red-700">{result?.errors.join("; ") || "OK"}</td>
+                    <td className="px-3 py-2 text-red-700">{result?.errors.join("; ") || "No issues"}</td>
                   </tr>
                 );
               })}
+              {previewRows.length === 0 ? (
+                <tr>
+                  <td className="px-3 py-6 text-sm text-slate-500" colSpan={5}>
+                    Upload a CSV/XLSX file to start validation.
+                  </td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
         </div>
-      </Card>
+      </section>
     </div>
   );
 }

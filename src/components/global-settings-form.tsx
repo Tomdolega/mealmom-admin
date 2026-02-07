@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -55,7 +54,7 @@ export function GlobalSettingsForm({
     setSaving(false);
 
     if (error) {
-      setMessage(error.message);
+      setMessage("Could not save global settings. Please try again.");
       return;
     }
 
@@ -64,11 +63,16 @@ export function GlobalSettingsForm({
   }
 
   return (
-    <Card className="space-y-4">
-      <h2 className="text-lg font-semibold">Global settings (admin)</h2>
-      <FormField label="Enabled languages" hint="Comma-separated values, e.g. pl, en, es, de">
+    <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-5">
+      <div>
+        <h2 className="text-lg font-semibold text-slate-900">Global configuration</h2>
+        <p className="mt-1 text-sm text-slate-600">These defaults affect all users and recipe workflows.</p>
+      </div>
+
+      <FormField label="Enabled languages" hint="Comma-separated list, e.g. pl, en, es, de">
         <Input value={enabledLanguagesText} onChange={(e) => setEnabledLanguagesText(e.target.value)} />
       </FormField>
+
       <FormField label="Default language">
         <Select value={defaultLanguage} onChange={(e) => setDefaultLanguage(e.target.value)}>
           {languageOptions.map((language) => (
@@ -78,14 +82,17 @@ export function GlobalSettingsForm({
           ))}
         </Select>
       </FormField>
-      <FormField label="Enabled cuisines" hint="Comma-separated values, e.g. Polish, Italian, French">
+
+      <FormField label="Enabled cuisines" hint="Comma-separated list, e.g. Polish, Italian, French">
         <Input value={enabledCuisinesText} onChange={(e) => setEnabledCuisinesText(e.target.value)} />
       </FormField>
 
-      {message ? <p className="text-sm text-slate-700">{message}</p> : null}
-      <Button type="button" onClick={saveGlobalSettings} disabled={saving}>
-        {saving ? "Saving..." : "Save global settings"}
-      </Button>
-    </Card>
+      <div className="flex items-center gap-3">
+        <Button type="button" onClick={saveGlobalSettings} disabled={saving}>
+          {saving ? "Saving..." : "Save global settings"}
+        </Button>
+        {message ? <p className="text-sm text-slate-600">{message}</p> : null}
+      </div>
+    </section>
   );
 }

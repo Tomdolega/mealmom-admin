@@ -1,17 +1,18 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import type { IngredientItem, ProfileRole, RecipeRecord, RecipeStatus, StepItem } from "@/lib/types";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 
 const allStatuses: RecipeStatus[] = ["draft", "in_review", "published", "archived"];
+const imageBucket = process.env.NEXT_PUBLIC_SUPABASE_PRODUCT_IMAGES_BUCKET || "recipe-images";
 
 type RecipeFormProps = {
   mode: "create" | "edit";
@@ -78,6 +79,7 @@ export function RecipeForm({
   defaultLanguage,
 }: RecipeFormProps) {
   const router = useRouter();
+  const uploadInputRef = useRef<HTMLInputElement | null>(null);
 
   const [title, setTitle] = useState(recipe?.title || "");
   const [subtitle, setSubtitle] = useState(recipe?.subtitle || "");
@@ -91,6 +93,8 @@ export function RecipeForm({
   const [servings, setServings] = useState(recipe?.servings?.toString() || "");
   const [totalMinutes, setTotalMinutes] = useState(recipe?.total_minutes?.toString() || "");
   const [difficulty, setDifficulty] = useState(recipe?.difficulty || "");
+  const [imageUrls, setImageUrls] = useState<string[]>(recipe?.image_urls || []);
+  const [newImageUrl, setNewImageUrl] = useState("");
   const [ingredients, setIngredients] = useState<IngredientItem[]>(
     recipe?.ingredients?.length ? recipe.ingredients : [{ name: "", amount: "", unit: "", note: "" }],
   );
@@ -99,6 +103,7 @@ export function RecipeForm({
   );
   const [submitting, setSubmitting] = useState(false);
   const [isAutoSaving, setIsAutoSaving] = useState(false);
+  const [uploadingImages, setUploadingImages] = useState(false);
   const [autoSaveEnabled, setAutoSaveEnabled] = useState(role === "admin" || role === "editor");
   const [error, setError] = useState<string | null>(null);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(recipe?.updated_at || null);
@@ -115,6 +120,7 @@ export function RecipeForm({
       servings: recipe?.servings ?? null,
       total_minutes: recipe?.total_minutes ?? null,
       difficulty: recipe?.difficulty || null,
+      image_urls: recipe?.image_urls || [],
       ingredients: recipe?.ingredients || [],
       steps: recipe?.steps || [],
     }),
@@ -142,11 +148,13 @@ export function RecipeForm({
       servings: servings ? Number(servings) : null,
       total_minutes: totalMinutes ? Number(totalMinutes) : null,
       difficulty: difficulty || null,
+      image_urls: imageUrls,
       ingredients: normalizeIngredients(ingredients),
       steps: normalizeSteps(steps),
     }),
     [
       difficulty,
+      imageUrls,
       ingredients,
       primaryCuisine,
       recipe?.translation_group_id,
@@ -198,7 +206,7 @@ export function RecipeForm({
       }
 
       if (result.error) {
-        setError(result.error.message);
+        setError("Could not save this recipe. Check required fields and try again.");
         return;
       }
 
@@ -237,11 +245,59 @@ export function RecipeForm({
     await saveRecipe("manual");
   }
 
+  async function handleImageUpload(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    setUploadingImages(true);
+    setError(null);
+
+    const supabase = createClient();
+    const uploaded: string[] = [];
+
+    for (const file of Array.from(files)) {
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+      const path = `recipes/${recipe?.id || "draft"}/${Date.now()}-${safeName}`;
+
+      const { error: uploadError } = await supabase.storage.from(imageBucket).upload(path, file, {
+        upsert: false,
+      });
+
+      if (uploadError) {
+        setError(
+          `Could not upload one or more images. Ensure bucket '${imageBucket}' exists and has upload policies for authenticated users.`,
+        );
+        continue;
+      }
+
+      const { data } = supabase.storage.from(imageBucket).getPublicUrl(path);
+      if (data.publicUrl) uploaded.push(data.publicUrl);
+    }
+
+    if (uploaded.length > 0) {
+      setImageUrls((prev) => [...prev, ...uploaded]);
+    }
+
+    setUploadingImages(false);
+  }
+
+  function addImageUrl() {
+    const trimmed = newImageUrl.trim();
+    if (!trimmed) return;
+    if (imageUrls.includes(trimmed)) {
+      setNewImageUrl("");
+      return;
+    }
+    setImageUrls((prev) => [...prev, trimmed]);
+    setNewImageUrl("");
+  }
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
-      <Card className="space-y-3">
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <section className="space-y-3 rounded-xl border border-slate-200 bg-white/70 p-4 backdrop-blur-xl">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold">Editing status</h2>
+          <div>
+            <h2 className="text-base font-semibold text-slate-900">Editing session</h2>
+            <p className="text-sm text-slate-600">Save manually at any time. Draft changes can auto-save.</p>
+          </div>
           {canAutoSave ? (
             <label className="inline-flex items-center gap-2 text-sm text-slate-700">
               <input
@@ -255,21 +311,25 @@ export function RecipeForm({
           ) : null}
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 text-sm">
+        <div className="flex flex-wrap items-center gap-4 text-sm">
           <span className={isDirty ? "text-amber-700" : "text-slate-600"}>{isDirty ? "Unsaved changes" : "All changes saved"}</span>
           <span className="text-slate-500">Last saved: {formatLastSaved(lastSavedAt)}</span>
           {isAutoSaving ? <span className="text-slate-600">Auto-saving...</span> : null}
         </div>
 
         {role === "reviewer" ? (
-          <p className="text-sm text-slate-600">
-            Reviewer mode: recipe content is read-only. You can only change status from in_review to draft or published.
+          <p className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-600">
+            Reviewer mode: content fields are read-only. You can only move recipes from in_review to draft or published.
           </p>
         ) : null}
-      </Card>
+      </section>
 
-      <Card>
-        <h2 className="mb-4 text-lg font-semibold">Basics</h2>
+      <section className="space-y-4 rounded-xl border border-slate-200 bg-white/70 p-4 backdrop-blur-xl">
+        <header className="space-y-1 border-b border-slate-200 pb-3">
+          <h2 className="text-base font-semibold text-slate-900">Recipe details</h2>
+          <p className="text-sm text-slate-600">Basic metadata used in search, lists, and workflow.</p>
+        </header>
+
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <FormField label="Title">
@@ -332,10 +392,7 @@ export function RecipeForm({
             </Select>
             <div className="mt-2 flex flex-wrap gap-2">
               {selectedCuisines.map((item) => (
-                <span
-                  key={item}
-                  className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-slate-100 px-3 py-1 text-xs text-slate-700"
-                >
+                <span key={item} className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-700">
                   {item}
                   {canEditContent ? (
                     <button
@@ -351,24 +408,13 @@ export function RecipeForm({
             </div>
           </FormField>
           <FormField label="Tags (comma-separated)">
-            <Input
-              value={tagsText}
-              onChange={(e) => setTagsText(e.target.value)}
-              placeholder="quick, family"
-              disabled={!canEditContent}
-            />
+            <Input value={tagsText} onChange={(e) => setTagsText(e.target.value)} placeholder="quick, family" disabled={!canEditContent} />
           </FormField>
           <FormField label="Servings">
             <Input type="number" min={1} value={servings} onChange={(e) => setServings(e.target.value)} disabled={!canEditContent} />
           </FormField>
           <FormField label="Total minutes">
-            <Input
-              type="number"
-              min={0}
-              value={totalMinutes}
-              onChange={(e) => setTotalMinutes(e.target.value)}
-              disabled={!canEditContent}
-            />
+            <Input type="number" min={0} value={totalMinutes} onChange={(e) => setTotalMinutes(e.target.value)} disabled={!canEditContent} />
           </FormField>
           <FormField label="Difficulty">
             <Select value={difficulty} onChange={(e) => setDifficulty(e.target.value)} disabled={!canEditContent}>
@@ -379,11 +425,79 @@ export function RecipeForm({
             </Select>
           </FormField>
         </div>
-      </Card>
+      </section>
 
-      <Card>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Ingredients</h2>
+      <section className="space-y-4 rounded-xl border border-slate-200 bg-white/70 p-4 backdrop-blur-xl">
+        <header className="flex items-start justify-between gap-3 border-b border-slate-200 pb-3">
+          <div>
+            <h2 className="text-base font-semibold text-slate-900">Product images</h2>
+            <p className="text-sm text-slate-600">Dodaj linki zdjęć lub wgraj pliki bezpośrednio do Supabase Storage.</p>
+          </div>
+          {canEditContent ? (
+            <div className="flex items-center gap-2">
+              <input
+                ref={uploadInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={(event) => void handleImageUpload(event.target.files)}
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => uploadInputRef.current?.click()}
+                disabled={uploadingImages}
+              >
+                {uploadingImages ? "Uploading..." : "Upload images"}
+              </Button>
+            </div>
+          ) : null}
+        </header>
+
+        {canEditContent ? (
+          <div className="flex flex-wrap gap-2">
+            <Input value={newImageUrl} onChange={(e) => setNewImageUrl(e.target.value)} placeholder="https://..." className="max-w-lg" />
+            <Button type="button" variant="secondary" onClick={addImageUrl}>
+              Add URL
+            </Button>
+          </div>
+        ) : null}
+
+        {imageUrls.length === 0 ? (
+          <p className="text-sm text-slate-500">No images yet.</p>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {imageUrls.map((url) => (
+              <div key={url} className="rounded-lg border border-slate-200 bg-slate-50 p-2">
+                <div className="mb-2 aspect-[4/3] overflow-hidden rounded-md bg-slate-100">
+                  <Image src={url} alt="Recipe product" className="h-full w-full object-cover" width={480} height={360} unoptimized />
+                </div>
+                <p className="truncate text-xs text-slate-600">{url}</p>
+                {canEditContent ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="mt-2 text-red-600 hover:bg-red-50"
+                    onClick={() => setImageUrls((prev) => prev.filter((item) => item !== url))}
+                  >
+                    Remove
+                  </Button>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="space-y-4 rounded-xl border border-slate-200 bg-white/70 p-4 backdrop-blur-xl">
+        <header className="flex items-start justify-between gap-3 border-b border-slate-200 pb-3">
+          <div>
+            <h2 className="text-base font-semibold text-slate-900">Ingredients</h2>
+            <p className="text-sm text-slate-600">Capture each ingredient as a structured row.</p>
+          </div>
           {canEditContent ? (
             <Button
               type="button"
@@ -394,52 +508,41 @@ export function RecipeForm({
               Add ingredient
             </Button>
           ) : null}
-        </div>
+        </header>
 
-        <div className="space-y-3">
+        <div className="space-y-2">
           {ingredients.map((ingredient, index) => (
-            <div
-              key={`ingredient-${index}`}
-              className="grid gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:grid-cols-4"
-            >
+            <div key={`ingredient-${index}`} className="grid gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:grid-cols-4">
               <Input
                 placeholder="Name"
                 value={ingredient.name}
                 disabled={!canEditContent}
-                onChange={(e) =>
-                  setIngredients((prev) => prev.map((item, i) => (i === index ? { ...item, name: e.target.value } : item)))
-                }
+                onChange={(e) => setIngredients((prev) => prev.map((item, i) => (i === index ? { ...item, name: e.target.value } : item)))}
               />
               <Input
                 placeholder="Amount"
                 value={ingredient.amount}
                 disabled={!canEditContent}
-                onChange={(e) =>
-                  setIngredients((prev) => prev.map((item, i) => (i === index ? { ...item, amount: e.target.value } : item)))
-                }
+                onChange={(e) => setIngredients((prev) => prev.map((item, i) => (i === index ? { ...item, amount: e.target.value } : item)))}
               />
               <Input
                 placeholder="Unit"
                 value={ingredient.unit}
                 disabled={!canEditContent}
-                onChange={(e) =>
-                  setIngredients((prev) => prev.map((item, i) => (i === index ? { ...item, unit: e.target.value } : item)))
-                }
+                onChange={(e) => setIngredients((prev) => prev.map((item, i) => (i === index ? { ...item, unit: e.target.value } : item)))}
               />
               <Input
                 placeholder="Note (optional)"
                 value={ingredient.note || ""}
                 disabled={!canEditContent}
-                onChange={(e) =>
-                  setIngredients((prev) => prev.map((item, i) => (i === index ? { ...item, note: e.target.value } : item)))
-                }
+                onChange={(e) => setIngredients((prev) => prev.map((item, i) => (i === index ? { ...item, note: e.target.value } : item)))}
               />
               {canEditContent ? (
                 <Button
                   type="button"
-                  variant="danger"
+                  variant="ghost"
                   size="sm"
-                  className="w-fit"
+                  className="w-fit text-red-600 hover:bg-red-50"
                   onClick={() => setIngredients((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev))}
                 >
                   Remove
@@ -448,11 +551,14 @@ export function RecipeForm({
             </div>
           ))}
         </div>
-      </Card>
+      </section>
 
-      <Card>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Steps</h2>
+      <section className="space-y-4 rounded-xl border border-slate-200 bg-white/70 p-4 backdrop-blur-xl">
+        <header className="flex items-start justify-between gap-3 border-b border-slate-200 pb-3">
+          <div>
+            <h2 className="text-base font-semibold text-slate-900">Steps</h2>
+            <p className="text-sm text-slate-600">Keep instructions concise and ordered for easier review.</p>
+          </div>
           {canEditContent ? (
             <Button
               type="button"
@@ -463,41 +569,35 @@ export function RecipeForm({
               Add step
             </Button>
           ) : null}
-        </div>
+        </header>
 
-        <div className="space-y-3">
+        <div className="space-y-2">
           {steps.map((step, index) => (
-            <div key={`step-${index}`} className="grid gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:grid-cols-5">
-              <div className="flex h-10 items-center rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700">
-                Step {index + 1}
-              </div>
+            <div key={`step-${index}`} className="grid gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:grid-cols-5">
+              <div className="flex h-9 items-center rounded-md bg-white px-3 text-sm text-slate-600">Step {index + 1}</div>
               <Textarea
-                placeholder="Step text"
+                placeholder="Describe this step"
                 value={step.text}
                 disabled={!canEditContent}
                 onChange={(e) => setSteps((prev) => prev.map((item, i) => (i === index ? { ...item, text: e.target.value } : item)))}
-                className="sm:col-span-3 min-h-10"
+                className="sm:col-span-3 min-h-9"
               />
               <Input
                 type="number"
                 min={0}
-                placeholder="Timer (sec)"
+                placeholder="Timer sec"
                 value={step.timer_seconds ?? ""}
                 disabled={!canEditContent}
                 onChange={(e) =>
-                  setSteps((prev) =>
-                    prev.map((item, i) =>
-                      i === index ? { ...item, timer_seconds: e.target.value ? Number(e.target.value) : null } : item,
-                    ),
-                  )
+                  setSteps((prev) => prev.map((item, i) => (i === index ? { ...item, timer_seconds: e.target.value ? Number(e.target.value) : null } : item)))
                 }
               />
               {canEditContent ? (
                 <Button
                   type="button"
-                  variant="danger"
+                  variant="ghost"
                   size="sm"
-                  className="w-fit"
+                  className="w-fit text-red-600 hover:bg-red-50"
                   onClick={() => setSteps((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev))}
                 >
                   Remove
@@ -506,13 +606,15 @@ export function RecipeForm({
             </div>
           ))}
         </div>
-      </Card>
+      </section>
 
-      {error ? <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}
+      {error ? <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
 
-      <Button disabled={submitting || isAutoSaving} type="submit">
-        {submitting ? "Saving..." : "Save"}
-      </Button>
+      <div className="flex items-center justify-end">
+        <Button disabled={submitting || isAutoSaving} type="submit">
+          {submitting ? "Saving..." : "Save recipe"}
+        </Button>
+      </div>
     </form>
   );
 }

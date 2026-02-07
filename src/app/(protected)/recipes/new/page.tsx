@@ -25,8 +25,12 @@ export default async function NewRecipePage({ searchParams }: NewRecipeProps) {
   const normalizedSettings = normalizeAppSettings(appSettings);
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-semibold tracking-tight">Create recipe</h1>
+    <div className="space-y-5">
+      <section className="rounded-xl border border-slate-200 bg-white p-5">
+        <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Create recipe</h1>
+        <p className="mt-1 text-sm text-slate-600">Start with core details, then add ingredients and steps.</p>
+      </section>
+
       <RecipeForm
         mode="create"
         role={profile.role}

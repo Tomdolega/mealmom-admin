@@ -1,7 +1,6 @@
 import { ConnectionStatusWidget } from "@/components/connection-status-widget";
 import { GlobalSettingsForm } from "@/components/global-settings-form";
 import { UserSettingsForm } from "@/components/user-settings-form";
-import { Card } from "@/components/ui/card";
 import { getCurrentProfileOrRedirect } from "@/lib/auth";
 import { normalizeAppSettings } from "@/lib/settings";
 import type { AppSettingsRecord, UserSettingsRecord } from "@/lib/types";
@@ -25,35 +24,38 @@ export default async function SettingsPage() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
-        <p className="text-sm text-slate-600">Personal preferences and app-level configuration.</p>
-      </div>
+      <section className="rounded-xl border border-slate-200 bg-white p-5">
+        <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Settings</h1>
+        <p className="mt-1 text-sm text-slate-600">Personal preferences and system configuration for the admin workspace.</p>
+      </section>
 
       <ConnectionStatusWidget />
 
-      <UserSettingsForm
-        userId={session.user.id}
-        enabledLanguages={appSettings.enabled_languages}
-        enabledCuisines={appSettings.enabled_cuisines}
-        initial={{
-          preferred_language: userSettingsRow?.preferred_language || appSettings.default_language,
-          preferred_cuisines: userSettingsRow?.preferred_cuisines || [],
-          ui_density: userSettingsRow?.ui_density || "comfortable",
-        }}
-      />
-
-      {profile.role === "admin" ? (
-        <GlobalSettingsForm
-          initialDefaultLanguage={appSettings.default_language}
-          initialEnabledLanguages={appSettings.enabled_languages}
-          initialEnabledCuisines={appSettings.enabled_cuisines}
+      <div className="grid gap-5 lg:grid-cols-2">
+        <UserSettingsForm
+          userId={session.user.id}
+          enabledLanguages={appSettings.enabled_languages}
+          enabledCuisines={appSettings.enabled_cuisines}
+          initial={{
+            preferred_language: userSettingsRow?.preferred_language || appSettings.default_language,
+            preferred_cuisines: userSettingsRow?.preferred_cuisines || [],
+            ui_density: userSettingsRow?.ui_density || "comfortable",
+          }}
         />
-      ) : (
-        <Card>
-          <p className="text-sm text-slate-600">Global settings can only be edited by admins.</p>
-        </Card>
-      )}
+
+        {profile.role === "admin" ? (
+          <GlobalSettingsForm
+            initialDefaultLanguage={appSettings.default_language}
+            initialEnabledLanguages={appSettings.enabled_languages}
+            initialEnabledCuisines={appSettings.enabled_cuisines}
+          />
+        ) : (
+          <section className="rounded-xl border border-slate-200 bg-white p-5">
+            <h2 className="text-lg font-semibold text-slate-900">Global configuration</h2>
+            <p className="mt-2 text-sm text-slate-600">Only admins can edit system-wide settings.</p>
+          </section>
+        )}
+      </div>
     </div>
   );
 }

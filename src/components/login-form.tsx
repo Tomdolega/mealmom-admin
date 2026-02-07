@@ -1,24 +1,33 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
+import { getClientUILang, tr } from "@/lib/ui-language";
 
 export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const lang = getClientUILang();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const queryError =
-    searchParams.get("error") === "profile_missing"
-      ? "Your account has no profile row yet. Ask an admin to create or sync your profile."
-      : null;
+  const queryError = useMemo(
+    () =>
+      searchParams.get("error") === "profile_missing"
+        ? tr(
+            lang,
+            "Your account has no profile row yet. Ask an admin to create or sync your profile.",
+            "Twoje konto nie ma jeszcze profilu. Poproś administratora o utworzenie lub synchronizację profilu.",
+          )
+        : null,
+    [lang, searchParams],
+  );
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -44,7 +53,7 @@ export function LoginForm() {
 
   return (
     <form className="space-y-4" onSubmit={handleSubmit}>
-      <FormField label="Email">
+      <FormField label={tr(lang, "Email", "E-mail")}>
         <Input
           id="email"
           type="email"
@@ -54,7 +63,7 @@ export function LoginForm() {
           placeholder="you@company.com"
         />
       </FormField>
-      <FormField label="Password">
+      <FormField label={tr(lang, "Password", "Hasło")}>
         <Input
           id="password"
           type="password"
@@ -68,7 +77,7 @@ export function LoginForm() {
       {error ? <p className="rounded-lg bg-red-50 p-2 text-sm text-red-700">{error}</p> : null}
 
       <Button type="submit" disabled={loading} className="w-full">
-        {loading ? "Signing in..." : "Sign in"}
+        {loading ? tr(lang, "Signing in...", "Logowanie...") : tr(lang, "Sign in", "Zaloguj")}
       </Button>
     </form>
   );

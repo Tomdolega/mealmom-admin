@@ -17,10 +17,15 @@ export default async function UsersPage() {
     .returns<ProfileRecord[]>();
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-semibold tracking-tight">User roles</h1>
-      <p className="text-sm text-slate-600">Admin-only page to manage roles in the profiles table.</p>
-      {error ? <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error.message}</p> : null}
+    <div className="space-y-5">
+      <section className="rounded-xl border border-slate-200 bg-white p-5">
+        <h1 className="text-2xl font-semibold tracking-tight text-slate-900">User roles</h1>
+        <p className="mt-1 text-sm text-slate-600">
+          This is an admin-only control area. Role changes affect permissions immediately across the panel.
+        </p>
+      </section>
+
+      {error ? <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">Could not load users right now.</p> : null}
       <UserRoleManager profiles={profiles || []} />
     </div>
   );

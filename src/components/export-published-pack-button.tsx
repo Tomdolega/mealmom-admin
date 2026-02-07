@@ -21,7 +21,7 @@ export function ExportPublishedPackButton({ language, cuisine }: ExportButtonPro
     let query = supabase
       .from("recipes")
       .select(
-        "id, translation_group_id, language, title, subtitle, status, primary_cuisine, cuisines, tags, servings, total_minutes, difficulty, ingredients, steps, published_at",
+        "id, translation_group_id, language, title, subtitle, status, primary_cuisine, cuisines, tags, servings, total_minutes, difficulty, image_urls, ingredients, steps, published_at",
       )
       .eq("status", "published")
       .order("title", { ascending: true });
@@ -34,7 +34,7 @@ export function ExportPublishedPackButton({ language, cuisine }: ExportButtonPro
     setLoading(false);
 
     if (fetchError) {
-      setError(fetchError.message);
+      setError("Could not export right now. Please retry.");
       return;
     }
 
@@ -51,11 +51,11 @@ export function ExportPublishedPackButton({ language, cuisine }: ExportButtonPro
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-1">
       <Button type="button" variant="secondary" onClick={handleExport} disabled={loading}>
-        {loading ? "Exporting..." : "Export published pack"}
+        {loading ? "Preparing export..." : "Export published pack"}
       </Button>
-      {error ? <p className="text-sm text-red-700">{error}</p> : null}
+      {error ? <p className="text-xs text-red-700">{error}</p> : null}
     </div>
   );
 }

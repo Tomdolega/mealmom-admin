@@ -1,37 +1,52 @@
 import type { ProfileRole } from "@/lib/types";
+import type { UILang } from "@/lib/ui-language";
 import { LogoutButton } from "@/components/logout-button";
 import { NavLink } from "@/components/nav-link";
+import { LanguageSwitcher } from "@/components/language-switcher";
 
 type AppShellProps = {
   role: ProfileRole;
   displayName?: string | null;
+  lang: UILang;
+  labels: {
+    dashboard: string;
+    newRecipe: string;
+    settings: string;
+    import: string;
+    users: string;
+    language: string;
+    signOut: string;
+  };
   children: React.ReactNode;
 };
 
-export function AppShell({ role, displayName, children }: AppShellProps) {
+export function AppShell({ role, displayName, lang, labels, children }: AppShellProps) {
   return (
     <div className="min-h-screen text-slate-900">
-      <header className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/90 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
+      <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/70 backdrop-blur-xl">
+        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-6 px-4 sm:px-6 lg:px-8">
           <div className="min-w-0">
-            <p className="text-base font-semibold tracking-tight text-slate-900">MealMom Admin</p>
+            <p className="text-sm font-semibold tracking-tight text-slate-900">MealMom Admin</p>
             <p className="truncate text-xs text-slate-500">
               {displayName || "User"} · {role}
             </p>
           </div>
-          <div className="ml-4 flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1">
-            <NavLink href="/dashboard">Dashboard</NavLink>
-            {role !== "reviewer" ? <NavLink href="/recipes/new">New Recipe</NavLink> : null}
-            <NavLink href="/settings">Settings</NavLink>
-            {role === "admin" ? <NavLink href="/import">Import</NavLink> : null}
-            {role === "admin" ? <NavLink href="/users">Users</NavLink> : null}
-          </div>
-          <div className="ml-4">
-            <LogoutButton />
+
+          <nav className="flex min-w-0 flex-1 items-center justify-center gap-1 border-x border-slate-200 px-4">
+            <NavLink href="/dashboard">{labels.dashboard}</NavLink>
+            {role !== "reviewer" ? <NavLink href="/recipes/new">{labels.newRecipe}</NavLink> : null}
+            <NavLink href="/settings">{labels.settings}</NavLink>
+            {role === "admin" ? <NavLink href="/import">{labels.import}</NavLink> : null}
+            {role === "admin" ? <NavLink href="/users">{labels.users}</NavLink> : null}
+          </nav>
+
+          <div className="flex items-center gap-2">
+            <LanguageSwitcher lang={lang} label={labels.language} />
+            <LogoutButton label={labels.signOut} />
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-7xl px-4 py-7 sm:px-6 lg:px-8">{children}</main>
+      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">{children}</main>
     </div>
   );
 }

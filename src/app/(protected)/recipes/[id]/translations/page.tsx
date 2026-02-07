@@ -15,7 +15,11 @@ export default async function RecipeTranslationsPage({ params }: RecipeTranslati
   const { id } = await params;
 
   const [{ data: rootRecipe }, { data: appSettings }] = await Promise.all([
-    supabase.from("recipes").select("id, translation_group_id").eq("id", id).maybeSingle<{ id: string; translation_group_id: string }>(),
+    supabase
+      .from("recipes")
+      .select("id, translation_group_id")
+      .eq("id", id)
+      .maybeSingle<{ id: string; translation_group_id: string }>(),
     supabase
       .from("app_settings")
       .select("id, default_language, enabled_languages, enabled_cuisines, created_at, updated_at")
@@ -37,8 +41,11 @@ export default async function RecipeTranslationsPage({ params }: RecipeTranslati
   const normalizedSettings = normalizeAppSettings(appSettings);
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-semibold tracking-tight">Translations</h1>
+    <div className="space-y-5">
+      <section className="rounded-xl border border-slate-200 bg-white p-5">
+        <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Translations</h1>
+        <p className="mt-1 text-sm text-slate-600">Track language coverage and create missing variants.</p>
+      </section>
       <TranslationsPanel
         translationGroupId={rootRecipe.translation_group_id}
         recipes={translations || []}

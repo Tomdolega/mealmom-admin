@@ -3,17 +3,16 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 
 type State = "idle" | "loading" | "ok" | "error";
 
 export function ConnectionStatusWidget() {
   const [state, setState] = useState<State>("idle");
-  const [message, setMessage] = useState<string>("Not checked yet.");
+  const [message, setMessage] = useState<string>("Run a quick check to confirm Supabase availability.");
 
   async function checkConnection() {
     setState("loading");
-    setMessage("Checking Supabase connection...");
+    setMessage("Checking connection...");
 
     try {
       const supabase = createClient();
@@ -24,7 +23,7 @@ export function ConnectionStatusWidget() {
 
       if (userError || !user) {
         setState("error");
-        setMessage(userError?.message || "No active session.");
+        setMessage("Session is unavailable. Please sign in again.");
         return;
       }
 
@@ -32,38 +31,29 @@ export function ConnectionStatusWidget() {
 
       if (error) {
         setState("error");
-        setMessage(error.message);
+        setMessage("Connection failed. Please retry in a moment.");
         return;
       }
 
       setState("ok");
-      setMessage("Connection OK. Supabase query succeeded.");
+      setMessage("Connection OK. Database queries are responding.");
     } catch {
       setState("error");
-      setMessage("Unexpected connection error.");
+      setMessage("Connection check failed unexpectedly.");
     }
   }
 
   return (
-    <Card className="space-y-3">
-      <div>
-        <h2 className="text-lg font-semibold">Connection status</h2>
-        <p className="text-sm text-slate-600">Quick check using your profile query.</p>
+    <section className="rounded-xl border border-slate-200 bg-white p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">System connection</h3>
+          <p className={state === "error" ? "mt-1 text-sm text-red-700" : "mt-1 text-sm text-slate-600"}>{message}</p>
+        </div>
+        <Button variant="secondary" size="sm" onClick={checkConnection} disabled={state === "loading"}>
+          {state === "loading" ? "Checking..." : "Check"}
+        </Button>
       </div>
-      <p
-        className={
-          state === "ok"
-            ? "text-sm text-emerald-700"
-            : state === "error"
-              ? "text-sm text-red-700"
-              : "text-sm text-slate-600"
-        }
-      >
-        {message}
-      </p>
-      <Button variant="secondary" size="sm" onClick={checkConnection} disabled={state === "loading"}>
-        {state === "loading" ? "Checking..." : "Check connection"}
-      </Button>
-    </Card>
+    </section>
   );
 }

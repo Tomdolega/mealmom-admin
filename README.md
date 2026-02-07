@@ -15,12 +15,14 @@ Next.js (App Router) + Supabase admin panel for recipe entry, review workflow, p
   - Debounced draft auto-save (1200ms)
   - Explicit Save button
   - Unsaved changes + last saved timestamp indicator
+  - Product image support (`image_urls`) with URL input and optional upload to Supabase Storage
 - Reviewer restrictions:
   - Reviewers can open recipes
   - Reviewers can only change status from `in_review -> published` or `in_review -> draft`
   - Recipe content fields are read-only for reviewers
   - Enforced in both UI and DB policies/triggers
 - Dashboard quick filters, status badges, and export published pack
+- UI language switcher (EN/PL) in top navigation
 - Settings page:
   - Global app settings (admin): default/enabled languages + enabled cuisines
   - Per-user preferences: preferred language, ordered preferred cuisines, UI density
@@ -34,6 +36,7 @@ Create `.env.local`:
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+NEXT_PUBLIC_SUPABASE_PRODUCT_IMAGES_BUCKET=recipe-images
 ```
 
 If these are missing, `/login` shows a friendly setup message instead of crashing.
@@ -62,6 +65,7 @@ Run SQL files in order:
 1. `supabase/schema.sql`
 2. `supabase/002_settings_and_import.sql`
 3. `supabase/003_reviewer_workflow_and_audit_hardening.sql`
+4. `supabase/004_recipe_images_and_ui_language.sql`
 
 In Supabase Dashboard SQL Editor, paste and run each file.
 
@@ -115,6 +119,14 @@ Import notes:
 - Dry run validates and reports errors without inserting rows.
 - For real import, valid rows are upserted in chunks for better performance.
 - If any rows fail, `recipe-import-errors.csv` is downloaded.
+
+## Product Images
+
+- Recipes now store `image_urls` (array of image links).
+- In recipe editor you can:
+  - add image URL manually
+  - upload image files to Supabase Storage bucket (`NEXT_PUBLIC_SUPABASE_PRODUCT_IMAGES_BUCKET`)
+- Ensure the bucket exists and has authenticated upload/read policies.
 
 ## Main Routes
 

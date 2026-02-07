@@ -4,7 +4,6 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { UiDensity } from "@/lib/types";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { FormField } from "@/components/ui/form-field";
 import { Select } from "@/components/ui/select";
 import { OrderedCuisinesEditor } from "@/components/ordered-cuisines-editor";
@@ -42,7 +41,7 @@ export function UserSettingsForm({ userId, enabledLanguages, enabledCuisines, in
     setSaving(false);
 
     if (error) {
-      setMessage(error.message);
+      setMessage("Could not save preferences. Please try again.");
       return;
     }
 
@@ -50,37 +49,41 @@ export function UserSettingsForm({ userId, enabledLanguages, enabledCuisines, in
   }
 
   return (
-    <Card className="space-y-4">
-      <h2 className="text-lg font-semibold">My preferences</h2>
-      <FormField label="Preferred language">
-        <Select value={preferredLanguage} onChange={(e) => setPreferredLanguage(e.target.value)}>
-          {enabledLanguages.map((language) => (
-            <option key={language} value={language}>
-              {language}
-            </option>
-          ))}
-        </Select>
-      </FormField>
+    <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-5">
+      <div>
+        <h2 className="text-lg font-semibold text-slate-900">Personal preferences</h2>
+        <p className="mt-1 text-sm text-slate-600">Customize your default language, cuisine order, and editor density.</p>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <FormField label="Preferred language">
+          <Select value={preferredLanguage} onChange={(e) => setPreferredLanguage(e.target.value)}>
+            {enabledLanguages.map((language) => (
+              <option key={language} value={language}>
+                {language}
+              </option>
+            ))}
+          </Select>
+        </FormField>
+
+        <FormField label="UI density">
+          <Select value={uiDensity} onChange={(e) => setUiDensity(e.target.value as UiDensity)}>
+            <option value="comfortable">comfortable</option>
+            <option value="compact">compact</option>
+          </Select>
+        </FormField>
+      </div>
 
       <FormField label="Preferred cuisines (ordered)">
-        <OrderedCuisinesEditor
-          available={enabledCuisines}
-          value={preferredCuisines}
-          onChange={setPreferredCuisines}
-        />
+        <OrderedCuisinesEditor available={enabledCuisines} value={preferredCuisines} onChange={setPreferredCuisines} />
       </FormField>
 
-      <FormField label="UI density">
-        <Select value={uiDensity} onChange={(e) => setUiDensity(e.target.value as UiDensity)}>
-          <option value="comfortable">comfortable</option>
-          <option value="compact">compact</option>
-        </Select>
-      </FormField>
-
-      {message ? <p className="text-sm text-slate-700">{message}</p> : null}
-      <Button type="button" onClick={saveSettings} disabled={saving}>
-        {saving ? "Saving..." : "Save preferences"}
-      </Button>
-    </Card>
+      <div className="flex items-center gap-3">
+        <Button type="button" onClick={saveSettings} disabled={saving}>
+          {saving ? "Saving..." : "Save preferences"}
+        </Button>
+        {message ? <p className="text-sm text-slate-600">{message}</p> : null}
+      </div>
+    </section>
   );
 }

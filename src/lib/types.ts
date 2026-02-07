@@ -28,6 +28,7 @@ export type RecipeRecord = {
   servings: number | null;
   total_minutes: number | null;
   difficulty: string | null;
+  image_urls: string[];
   ingredients: IngredientItem[];
   steps: StepItem[];
   created_by: string | null;

@@ -21,15 +21,14 @@ export default async function ImportPage() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Import recipes</h1>
-        <p className="text-sm text-slate-600">Upload a CSV/XLSX, preview validation, then import valid rows.</p>
-      </div>
+      <section className="rounded-xl border border-slate-200 bg-white p-5">
+        <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Import recipes</h1>
+        <p className="mt-1 text-sm text-slate-600">
+          Run imports as a controlled workflow: validate first, inspect preview, then confirm changes.
+        </p>
+      </section>
 
-      <ImportRecipesPanel
-        enabledLanguages={normalized.enabled_languages}
-        enabledCuisines={normalized.enabled_cuisines}
-      />
+      <ImportRecipesPanel enabledLanguages={normalized.enabled_languages} enabledCuisines={normalized.enabled_cuisines} />
     </div>
   );
 }

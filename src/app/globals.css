@@ -1,11 +1,59 @@
 @import "tailwindcss";
 
-:root {
-  --page-bg: #f5f7fb;
-}
-
 body {
   font-family: var(--font-geist), sans-serif;
-  background: radial-gradient(circle at top left, #f8fafc 0%, #f3f5f9 45%, #eff2f7 100%);
+  background:
+    radial-gradient(1200px 700px at 10% -10%, rgba(125, 211, 252, 0.25), transparent 60%),
+    radial-gradient(900px 600px at 100% 0%, rgba(216, 180, 254, 0.2), transparent 55%),
+    linear-gradient(180deg, #f8fafc 0%, #f3f5f9 100%);
   color: #0f172a;
+  min-height: 100vh;
+}
+
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  z-index: -1;
+  pointer-events: none;
+  filter: blur(48px);
+  opacity: 0.55;
+}
+
+body::before {
+  width: 360px;
+  height: 360px;
+  border-radius: 9999px;
+  background: rgba(56, 189, 248, 0.2);
+  top: 12%;
+  left: 62%;
+  animation: driftA 16s ease-in-out infinite alternate;
+}
+
+body::after {
+  width: 320px;
+  height: 320px;
+  border-radius: 9999px;
+  background: rgba(192, 132, 252, 0.18);
+  top: 58%;
+  left: 8%;
+  animation: driftB 18s ease-in-out infinite alternate;
+}
+
+@keyframes driftA {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(28px, -16px, 0) scale(1.08);
+  }
+}
+
+@keyframes driftB {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(-24px, 12px, 0) scale(1.1);
+  }
 }
