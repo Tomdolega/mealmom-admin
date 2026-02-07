@@ -18,16 +18,14 @@ export type DashboardRecipeListRow = {
   title: string;
   status: RecipeStatus;
   primary_cuisine: string | null;
-  nutrition?: { per_serving?: { kcal?: number | null } } | null;
-  substitutions?: unknown[] | null;
-  image_urls?: string[];
+  cuisines: string[];
   created_by: string | null;
   updated_at: string;
 };
 
-// Keep dashboard list intentionally flat and schema-stable (no joins, no optional new columns).
+// Keep dashboard list intentionally flat and schema-stable (no joins, no optional migrated columns).
 export const DASHBOARD_RECIPE_LIST_COLUMNS =
-  "id, title, status, language, updated_at, translation_group_id, created_by, primary_cuisine, image_urls, nutrition, substitutions";
+  "id, title, status, language, updated_at, translation_group_id, created_by, primary_cuisine, cuisines";
 
 function buildCuisineOrFilter(cuisine: string) {
   const escaped = cuisine.replaceAll('"', '\\"');
@@ -56,9 +54,6 @@ export function applyDashboardRecipeListFilters<T extends DashboardFilterQuery<T
     nextQuery = nextQuery.eq("created_by", userId);
     nextQuery = nextQuery.eq("status", "draft");
   }
-  if (params.hasImage === "1") nextQuery = nextQuery.not("image_urls", "eq", "{}");
-  if (params.missingNutrition === "1") nextQuery = nextQuery.filter("nutrition", "eq", "{}");
-  if (params.missingSubstitutions === "1") nextQuery = nextQuery.filter("substitutions", "eq", "[]");
   if (params.cuisine) nextQuery = nextQuery.or(buildCuisineOrFilter(params.cuisine));
 
   return nextQuery;

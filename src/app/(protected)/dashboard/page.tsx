@@ -66,10 +66,10 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
     getStatusCount(supabase, "published"),
     supabase
       .from("recipes")
-      .select("id, title, status, language, updated_at, image_urls")
+      .select("id, title, status, language, updated_at")
       .order("updated_at", { ascending: false })
       .limit(6)
-      .returns<Array<Pick<RecipeRecord, "id" | "title" | "status" | "language" | "updated_at" | "image_urls">>>(),
+      .returns<Array<Pick<RecipeRecord, "id" | "title" | "status" | "language" | "updated_at">>>(),
   ]);
 
   const normalizedSettings = normalizeAppSettings(appSettingsRes.data);
@@ -99,6 +99,47 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
     }
   }
   const translationGroupIds = [...new Set((recipes || []).map((recipe) => recipe.translation_group_id))];
+  const recipeIdsForMeta = [...new Set([...(recipes || []).map((item) => item.id), ...recentRecipes.map((item) => item.id)])];
+  const recipeMetaMap = new Map<
+    string,
+    {
+      image_urls: string[];
+      nutrition: { per_serving?: { kcal?: number | null } };
+      substitutions: unknown[];
+    }
+  >();
+  if (recipeIdsForMeta.length > 0) {
+    const { data: metaRows, error: metaError } = await supabase
+      .from("recipes")
+      .select("id, image_urls, nutrition, substitutions")
+      .in("id", recipeIdsForMeta)
+      .returns<
+        Array<{
+          id: string;
+          image_urls?: string[] | null;
+          nutrition?: { per_serving?: { kcal?: number | null } } | null;
+          substitutions?: unknown[] | null;
+        }>
+      >();
+
+    if (metaError) {
+      // Keep dashboard usable even when optional migrations are missing in an environment.
+      console.warn(`[${listDebugId}] Optional recipe metadata query failed`, {
+        message: metaError.message,
+        code: metaError.code,
+        details: metaError.details,
+        hint: metaError.hint,
+      });
+    } else {
+      for (const row of metaRows || []) {
+        recipeMetaMap.set(row.id, {
+          image_urls: row.image_urls || [],
+          nutrition: row.nutrition || {},
+          substitutions: row.substitutions || [],
+        });
+      }
+    }
+  }
 
   const translationMap = new Map<string, string[]>();
   if (translationGroupIds.length > 0) {
@@ -123,6 +164,22 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
   if (params.hasImage) activeParams.set("hasImage", params.hasImage);
   if (params.missingNutrition) activeParams.set("missingNutrition", params.missingNutrition);
   if (params.missingSubstitutions) activeParams.set("missingSubstitutions", params.missingSubstitutions);
+
+  const recipesWithMeta = (recipes || []).map((item) => {
+    const meta = recipeMetaMap.get(item.id);
+    return {
+      ...item,
+      image_urls: meta?.image_urls || [],
+      nutrition: meta?.nutrition || { per_serving: {}, per_100g: {} },
+      substitutions: meta?.substitutions || [],
+    };
+  });
+  const filteredRecipes = recipesWithMeta.filter((item) => {
+    if (params.hasImage === "1" && item.image_urls.length === 0) return false;
+    if (params.missingNutrition === "1" && Object.keys(item.nutrition?.per_serving || {}).length > 0) return false;
+    if (params.missingSubstitutions === "1" && Array.isArray(item.substitutions) && item.substitutions.length > 0) return false;
+    return true;
+  });
 
   return (
     <div className="space-y-6">
@@ -172,7 +229,7 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
                   className="flex items-center justify-between rounded-md px-2 py-1.5 hover:bg-slate-50"
                 >
                   <span className="flex min-w-0 items-center gap-2">
-                    <RecipeThumbnail imageUrl={item.image_urls?.[0] || null} title={item.title} size="sm" />
+                    <RecipeThumbnail imageUrl={recipeMetaMap.get(item.id)?.image_urls?.[0] || null} title={item.title} size="sm" />
                     <span className="truncate text-sm text-slate-700">
                       {item.title} <span className="text-slate-400">· {item.language}</span>
                     </span>
@@ -305,8 +362,9 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {(recipes || []).map((recipe) => {
+              {filteredRecipes.map((recipe) => {
                 const recipeId = typeof recipe.id === "string" && recipe.id.trim().length > 0 ? recipe.id : null;
+                const servingKcal = (recipe.nutrition?.per_serving as { kcal?: number | null } | undefined)?.kcal;
                 if (!recipeId) {
                   console.warn(`[${listDebugId}] Missing recipe.id in dashboard row`, recipe);
                 }
@@ -337,7 +395,7 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
                       )}
                     </td>
                     <td className="px-4 py-3 text-slate-700">
-                      {typeof recipe.nutrition?.per_serving?.kcal === "number" ? recipe.nutrition.per_serving.kcal : "-"}
+                      {typeof servingKcal === "number" ? servingKcal : "-"}
                     </td>
                     <td className="px-4 py-3 text-slate-700">{recipe.primary_cuisine || "-"}</td>
                     <td className="px-4 py-3 text-xs text-slate-600">
@@ -370,7 +428,7 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
                   </tr>
                 );
               })}
-              {(recipes || []).length === 0 ? (
+              {filteredRecipes.length === 0 ? (
                 <tr>
                   <td className="px-4 py-8 text-sm text-slate-500" colSpan={8}>
                     {tr(lang, "No recipes match the current filters. Adjust filters or create a new recipe.", "Brak przepisów dla wybranych filtrów. Zmień filtry lub dodaj nowy przepis.")}
