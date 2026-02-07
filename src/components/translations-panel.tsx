@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { RecipeThumbnail } from "@/components/recipe-thumbnail";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
@@ -15,6 +16,7 @@ type TranslationItem = {
   title: string;
   status: RecipeStatus;
   updated_at: string;
+  image_urls?: string[] | null;
 };
 
 type TranslationsPanelProps = {
@@ -101,7 +103,12 @@ export function TranslationsPanel({
             {recipes.map((item) => (
               <tr key={item.id}>
                 <td className="px-4 py-3">{item.language}</td>
-                <td className="px-4 py-3">{item.title}</td>
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <RecipeThumbnail imageUrl={item.image_urls?.[0] || null} title={item.title} size="sm" />
+                    <span className="truncate">{item.title}</span>
+                  </div>
+                </td>
                 <td className="px-4 py-3">
                   <StatusBadge status={item.status} lang={lang} />
                 </td>

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { RecipeForm } from "@/components/recipe-form";
+import { RecipeThumbnail } from "@/components/recipe-thumbnail";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/badge";
@@ -13,7 +14,7 @@ type RecipeEditProps = {
   params: Promise<{ id: string }>;
 };
 
-type TranslationSummaryItem = Pick<RecipeRecord, "id" | "language" | "status">;
+type TranslationSummaryItem = Pick<RecipeRecord, "id" | "language" | "status" | "title" | "image_urls">;
 type RecipeCoreRow = Omit<RecipeRecord, "image_urls">;
 
 const RECIPE_EDIT_CORE_COLUMNS =
@@ -71,7 +72,7 @@ export default async function RecipeEditPage({ params }: RecipeEditProps) {
 
   const { data: translations } = await supabase
     .from("recipes")
-    .select("id, language, status")
+    .select("id, language, status, title, image_urls")
     .eq("translation_group_id", recipe.translation_group_id)
     .order("language", { ascending: true })
     .returns<TranslationSummaryItem[]>();
@@ -103,6 +104,7 @@ export default async function RecipeEditPage({ params }: RecipeEditProps) {
               href={`/recipes/${translation.id}`}
               className="inline-flex items-center gap-2 rounded-md bg-slate-50 px-2.5 py-1.5 text-sm text-slate-700 hover:bg-slate-100"
             >
+              <RecipeThumbnail imageUrl={translation.image_urls?.[0] || null} title={translation.title} size="sm" />
               <span>{translation.language}</span>
               <StatusBadge status={translation.status} lang={lang} />
             </Link>

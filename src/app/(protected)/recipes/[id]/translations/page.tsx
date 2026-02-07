@@ -9,7 +9,7 @@ type RecipeTranslationsProps = {
   params: Promise<{ id: string }>;
 };
 
-type TranslationListItem = Pick<RecipeRecord, "id" | "language" | "title" | "status" | "updated_at">;
+type TranslationListItem = Pick<RecipeRecord, "id" | "language" | "title" | "status" | "updated_at" | "image_urls">;
 
 export default async function RecipeTranslationsPage({ params }: RecipeTranslationsProps) {
   const [{ supabase, profile }, { id }, lang] = await Promise.all([getCurrentProfileOrRedirect(), params, getServerUILang()]);
@@ -33,7 +33,7 @@ export default async function RecipeTranslationsPage({ params }: RecipeTranslati
 
   const { data: translations } = await supabase
     .from("recipes")
-    .select("id, language, title, status, updated_at")
+    .select("id, language, title, status, updated_at, image_urls")
     .eq("translation_group_id", rootRecipe.translation_group_id)
     .order("language", { ascending: true })
     .returns<TranslationListItem[]>();

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ExportPublishedPackButton } from "@/components/export-published-pack-button";
+import { RecipeThumbnail } from "@/components/recipe-thumbnail";
 import { StatusBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -95,6 +96,30 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
     }
   }
   const translationGroupIds = [...new Set((recipes || []).map((recipe) => recipe.translation_group_id))];
+  const recipeIdsForThumbs = [
+    ...new Set([...(recipes || []).map((item) => item.id), ...recentRecipes.map((item) => item.id)]),
+  ];
+  const thumbnailMap = new Map<string, string | null>();
+  if (recipeIdsForThumbs.length > 0) {
+    const { data: imageRows, error: imageRowsError } = await supabase
+      .from("recipes")
+      .select("id, image_urls")
+      .in("id", recipeIdsForThumbs)
+      .returns<Array<{ id: string; image_urls: string[] | null }>>();
+
+    if (imageRowsError) {
+      console.warn(`[${listDebugId}] Recipe thumbnail query failed`, {
+        message: imageRowsError.message,
+        code: imageRowsError.code,
+        details: imageRowsError.details,
+        hint: imageRowsError.hint,
+      });
+    } else {
+      for (const row of imageRows || []) {
+        thumbnailMap.set(row.id, row.image_urls?.[0] || null);
+      }
+    }
+  }
 
   const translationMap = new Map<string, string[]>();
   if (translationGroupIds.length > 0) {
@@ -164,8 +189,11 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
                   href={`/recipes/${item.id}`}
                   className="flex items-center justify-between rounded-md px-2 py-1.5 hover:bg-slate-50"
                 >
-                  <span className="truncate text-sm text-slate-700">
-                    {item.title} <span className="text-slate-400">· {item.language}</span>
+                  <span className="flex min-w-0 items-center gap-2">
+                    <RecipeThumbnail imageUrl={thumbnailMap.get(item.id)} title={item.title} size="sm" />
+                    <span className="truncate text-sm text-slate-700">
+                      {item.title} <span className="text-slate-400">· {item.language}</span>
+                    </span>
                   </span>
                   <span className="text-xs text-slate-500">{new Date(item.updated_at).toLocaleString()}</span>
                 </Link>
@@ -280,8 +308,13 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
                 return (
                   <tr key={recipe.id || `${recipe.translation_group_id}-${recipe.updated_at}`} className="hover:bg-slate-50/80">
                     <td className="px-4 py-3">
-                      <p className="font-medium text-slate-900">{recipe.title}</p>
-                      <p className="text-xs text-slate-500">{recipe.language}</p>
+                      <div className="flex items-center gap-2">
+                        <RecipeThumbnail imageUrl={thumbnailMap.get(recipe.id)} title={recipe.title} />
+                        <div className="min-w-0">
+                          <p className="truncate font-medium text-slate-900">{recipe.title}</p>
+                          <p className="text-xs text-slate-500">{recipe.language}</p>
+                        </div>
+                      </div>
                     </td>
                     <td className="px-4 py-3">
                       <StatusBadge status={recipe.status} lang={lang} />
