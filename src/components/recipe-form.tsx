@@ -266,10 +266,13 @@ export function RecipeForm({
       });
 
       if (uploadError) {
+        const uploadDebug = uploadError.name
+          ? `${uploadError.name}: ${uploadError.message}`
+          : uploadError.message;
         setError(
           tt(
-            `Could not upload one or more images. Ensure bucket '${imageBucket}' exists and has upload policies for authenticated users.`,
-            `Nie udało się wgrać jednego lub więcej zdjęć. Upewnij się, że bucket '${imageBucket}' istnieje i ma polityki uploadu dla zalogowanych użytkowników.`,
+            `Could not upload one or more images. Ensure bucket '${imageBucket}' exists and has upload policies for authenticated users. (${uploadDebug})`,
+            `Nie udało się wgrać jednego lub więcej zdjęć. Upewnij się, że bucket '${imageBucket}' istnieje i ma polityki uploadu dla zalogowanych użytkowników. (${uploadDebug})`,
           ),
         );
         continue;
