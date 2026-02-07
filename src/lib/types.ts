@@ -3,6 +3,7 @@ export type RecipeStatus = "draft" | "in_review" | "published" | "archived";
 export type UiDensity = "comfortable" | "compact";
 
 export type IngredientItem = {
+  ingredient_key?: string;
   name: string;
   amount: string;
   unit: string;
@@ -15,12 +16,39 @@ export type StepItem = {
   timer_seconds?: number | null;
 };
 
+export type NutritionValues = {
+  kcal: number | null;
+  protein_g: number | null;
+  fat_g: number | null;
+  carbs_g: number | null;
+  fiber_g: number | null;
+  salt_g: number | null;
+};
+
+export type NutritionRecord = {
+  per_serving?: Partial<NutritionValues>;
+  per_100g?: Partial<NutritionValues>;
+};
+
+export type SubstitutionAlternative = {
+  alt_name: string;
+  ratio?: string;
+  note?: string;
+  dietary_tags?: string[];
+};
+
+export type IngredientSubstitution = {
+  ingredient_key: string;
+  alternatives: SubstitutionAlternative[];
+};
+
 export type RecipeRecord = {
   id: string;
   translation_group_id: string;
   language: string;
   title: string;
   subtitle: string | null;
+  description: string | null;
   status: RecipeStatus;
   primary_cuisine: string | null;
   cuisines: string[];
@@ -28,6 +56,8 @@ export type RecipeRecord = {
   servings: number | null;
   total_minutes: number | null;
   difficulty: string | null;
+  nutrition: NutritionRecord;
+  substitutions: IngredientSubstitution[];
   image_urls: string[];
   ingredients: IngredientItem[];
   steps: StepItem[];

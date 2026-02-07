@@ -15,11 +15,11 @@ set
   file_size_limit = excluded.file_size_limit,
   allowed_mime_types = excluded.allowed_mime_types;
 
-drop policy if exists "recipe images public read" on storage.objects;
-create policy "recipe images public read"
+drop policy if exists "recipe images authenticated read" on storage.objects;
+create policy "recipe images authenticated read"
 on storage.objects
 for select
-to public
+to authenticated
 using (bucket_id = 'recipe-images');
 
 drop policy if exists "recipe images authenticated upload" on storage.objects;
