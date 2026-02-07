@@ -3,7 +3,7 @@
 import * as XLSX from "xlsx";
 import { useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { RecipeStatus } from "@/lib/types";
+import type { NutritionRecord, RecipeStatus } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getClientUILang, tr } from "@/lib/ui-language.client";
@@ -25,6 +25,10 @@ type ImportPayload = {
   total_minutes: number | null;
   difficulty: string | null;
   subtitle: string | null;
+  description: string | null;
+  nutrition: NutritionRecord;
+  substitutions: unknown[];
+  image_urls: string[];
   ingredients: unknown[];
   steps: unknown[];
   translation_group_id?: string;
@@ -55,6 +59,36 @@ function parseJsonArray(value: string, field: "ingredients" | "steps") {
     throw new Error(`${field} must be a JSON array`);
   }
   return parsed;
+}
+
+function parseGenericJsonArray(value: string, fieldName: string) {
+  if (!value.trim()) return [];
+  const parsed = JSON.parse(value);
+  if (!Array.isArray(parsed)) {
+    throw new Error(`${fieldName} must be a JSON array`);
+  }
+  return parsed;
+}
+
+function parseJsonObject(value: string, field: "nutrition_per_serving" | "nutrition_per_100g") {
+  if (!value.trim()) return {};
+  const parsed = JSON.parse(value);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error(`${field} must be a JSON object`);
+  }
+  return parsed as Record<string, unknown>;
+}
+
+function normalizeNutritionObject(values: Record<string, unknown>) {
+  const normalized: Record<string, number> = {};
+  for (const [key, value] of Object.entries(values)) {
+    if (value == null || value === "") continue;
+    const parsed = Number(value);
+    if (Number.isFinite(parsed) && parsed >= 0) {
+      normalized[key] = parsed;
+    }
+  }
+  return normalized;
 }
 
 function toErrorCsv(items: ValidationResult[]) {
@@ -125,6 +159,9 @@ export function ImportRecipesPanel({ enabledLanguages, enabledCuisines }: Import
 
       let ingredients: unknown[] = [];
       let steps: unknown[] = [];
+      let nutritionPerServing: Record<string, unknown> = {};
+      let nutritionPer100g: Record<string, unknown> = {};
+      let substitutions: unknown[] = [];
 
       try {
         ingredients = parseJsonArray(row.ingredients || "[]", "ingredients");
@@ -137,9 +174,30 @@ export function ImportRecipesPanel({ enabledLanguages, enabledCuisines }: Import
       } catch {
         errors.push(tt("Steps must be a valid JSON array.", "Kroki muszą być poprawną tablicą JSON."));
       }
+      try {
+        nutritionPerServing = parseJsonObject(row.nutrition_per_serving || "{}", "nutrition_per_serving");
+      } catch {
+        errors.push(
+          tt(
+            "nutrition_per_serving must be a valid JSON object.",
+            "nutrition_per_serving musi być poprawnym obiektem JSON.",
+          ),
+        );
+      }
+      try {
+        nutritionPer100g = parseJsonObject(row.nutrition_per_100g || "{}", "nutrition_per_100g");
+      } catch {
+        errors.push(tt("nutrition_per_100g must be a valid JSON object.", "nutrition_per_100g musi być poprawnym obiektem JSON."));
+      }
+      try {
+        substitutions = parseGenericJsonArray(row.substitutions || "[]", "substitutions");
+      } catch {
+        errors.push(tt("Substitutions must be a valid JSON array.", "Zamienniki muszą być poprawną tablicą JSON."));
+      }
 
       const cuisines = parseList(row.cuisines || "");
       const tags = parseList(row.tags || "");
+      const imageUrls = parseList(row.image_urls || "");
 
       const invalidCuisine = cuisines.find((cuisine) => !enabledCuisines.includes(cuisine));
       if (invalidCuisine) {
@@ -158,6 +216,13 @@ export function ImportRecipesPanel({ enabledLanguages, enabledCuisines }: Import
         total_minutes: row.total_minutes ? Number(row.total_minutes) : null,
         difficulty: row.difficulty?.trim() || null,
         subtitle: row.subtitle?.trim() || null,
+        description: row.description?.trim() || null,
+        nutrition: {
+          per_serving: normalizeNutritionObject(nutritionPerServing),
+          per_100g: normalizeNutritionObject(nutritionPer100g),
+        },
+        substitutions,
+        image_urls: imageUrls,
         ingredients,
         steps,
         translation_group_id: row.translation_group_id?.trim() || undefined,
@@ -166,6 +231,21 @@ export function ImportRecipesPanel({ enabledLanguages, enabledCuisines }: Import
       if (payload.servings !== null && Number.isNaN(payload.servings)) errors.push(tt("Servings must be a number.", "Porcje muszą być liczbą."));
       if (payload.total_minutes !== null && Number.isNaN(payload.total_minutes)) {
         errors.push(tt("Total minutes must be a number.", "Czas całkowity musi być liczbą."));
+      }
+      for (const source of [payload.nutrition.per_serving || {}, payload.nutrition.per_100g || {}]) {
+        for (const value of Object.values(source)) {
+          if (value == null) continue;
+          const parsed = Number(value);
+          if (!Number.isFinite(parsed) || parsed < 0) {
+            errors.push(
+              tt(
+                "Nutrition values must be numbers >= 0.",
+                "Wartości nutrition muszą być liczbami >= 0.",
+              ),
+            );
+            break;
+          }
+        }
       }
 
       return { rowIndex, raw: row, errors, payload: errors.length ? undefined : payload };
@@ -307,8 +387,8 @@ export function ImportRecipesPanel({ enabledLanguages, enabledCuisines }: Import
             variant="secondary"
             onClick={() => {
               const template = [
-                "title,language,status,primary_cuisine,cuisines,tags,servings,total_minutes,difficulty,subtitle,ingredients,steps",
-                'Tomato Soup,en,draft,Polish,"Polish,Italian","quick,vegetarian",4,35,easy,"Simple and warm","[{""name"":""Tomato"",""amount"":""6"",""unit"":""pcs"",""note"":""ripe""}]","[{""step_number"":1,""text"":""Chop tomatoes"",""timer_seconds"":120}]"',
+                "title,language,status,primary_cuisine,cuisines,tags,servings,total_minutes,difficulty,subtitle,description,nutrition_per_serving,nutrition_per_100g,substitutions,image_urls,ingredients,steps",
+                'Tomato Soup,en,draft,Polish,"Polish,Italian","quick,vegetarian",4,35,easy,"Simple and warm","Rich tomato soup with basil.","{""kcal"":220,""protein_g"":6}","{""kcal"":80,""protein_g"":2}","[{""ingredient_key"":""tomato"",""alternatives"":[{""alt_name"":""passata"",""ratio"":""1:1"",""note"":""smooth texture"",""dietary_tags"":[""vegan""]}]}]","https://cdn.example.com/soup.jpg,https://cdn.example.com/soup-2.jpg","[{""ingredient_key"":""tomato"",""name"":""Tomato"",""amount"":""6"",""unit"":""pcs"",""note"":""ripe""}]","[{""step_number"":1,""text"":""Chop tomatoes"",""timer_seconds"":120}]"',
               ].join("\n");
               downloadCsv("recipes-import-template.csv", template);
             }}
@@ -322,7 +402,7 @@ export function ImportRecipesPanel({ enabledLanguages, enabledCuisines }: Import
         <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">{tt("Step 2: Validate", "Krok 2: Walidacja")}</h3>
         <p className="text-sm text-slate-600">
           {tt("Required fields", "Pola wymagane")}: <code>title</code>, <code>language</code>, <code>status</code>. {tt("Use JSON arrays for", "Użyj tablic JSON dla")}
-          <code> ingredients</code> {tt("and", "oraz")} <code>steps</code> {tt("cells", "w komórkach")}. 
+          <code> ingredients</code>, <code>steps</code>, <code>substitutions</code>. {tt("Use JSON objects for", "Użyj obiektów JSON dla")} <code>nutrition_per_serving</code> {tt("and", "oraz")} <code>nutrition_per_100g</code>.
         </p>
         <p className="text-sm text-slate-700">
           {tt("Valid rows", "Poprawne wiersze")}: {validCount} · {tt("Rows with issues", "Wiersze z błędami")}: {errorCount}
@@ -343,6 +423,8 @@ export function ImportRecipesPanel({ enabledLanguages, enabledCuisines }: Import
                 <th className="px-3 py-2 text-left font-medium">{tt("Cuisines", "Kuchnie")}</th>
                 <th className="px-3 py-2 text-left font-medium">{tt("Ingredients", "Składniki")}</th>
                 <th className="px-3 py-2 text-left font-medium">{tt("Steps", "Kroki")}</th>
+                <th className="px-3 py-2 text-left font-medium">{tt("Images", "Zdjęcia")}</th>
+                <th className="px-3 py-2 text-left font-medium">{tt("Nutrition", "Nutrition")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -355,11 +437,13 @@ export function ImportRecipesPanel({ enabledLanguages, enabledCuisines }: Import
                   <td className="px-3 py-2">{item.payload?.cuisines.length || 0}</td>
                   <td className="px-3 py-2">{item.payload?.ingredients.length || 0}</td>
                   <td className="px-3 py-2">{item.payload?.steps.length || 0}</td>
+                  <td className="px-3 py-2">{item.payload?.image_urls.length || 0}</td>
+                  <td className="px-3 py-2">{Object.keys(item.payload?.nutrition?.per_serving || {}).length > 0 ? "yes" : "no"}</td>
                 </tr>
               ))}
               {validDiffPreview.length === 0 ? (
                 <tr>
-                  <td className="px-3 py-6 text-sm text-slate-500" colSpan={7}>
+                  <td className="px-3 py-6 text-sm text-slate-500" colSpan={9}>
                     {tt("No valid rows to preview yet.", "Brak poprawnych wierszy do podglądu.")}
                   </td>
                 </tr>

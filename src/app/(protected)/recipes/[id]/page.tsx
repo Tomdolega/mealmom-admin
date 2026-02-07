@@ -18,7 +18,7 @@ type TranslationSummaryItem = Pick<RecipeRecord, "id" | "language" | "status" | 
 type RecipeCoreRow = Omit<RecipeRecord, "image_urls">;
 
 const RECIPE_EDIT_CORE_COLUMNS =
-  "id, translation_group_id, language, title, subtitle, status, primary_cuisine, cuisines, tags, servings, total_minutes, difficulty, ingredients, steps, created_by, updated_by, created_at, updated_at, published_at";
+  "id, translation_group_id, language, title, subtitle, description, status, primary_cuisine, cuisines, tags, servings, total_minutes, difficulty, nutrition, substitutions, ingredients, steps, created_by, updated_by, created_at, updated_at, published_at";
 
 export default async function RecipeEditPage({ params }: RecipeEditProps) {
   const [{ supabase, profile }, { id }, lang] = await Promise.all([getCurrentProfileOrRedirect(), params, getServerUILang()]);

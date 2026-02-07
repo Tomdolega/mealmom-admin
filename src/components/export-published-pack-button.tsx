@@ -23,7 +23,7 @@ export function ExportPublishedPackButton({ language, cuisine }: ExportButtonPro
     let query = supabase
       .from("recipes")
       .select(
-        "id, translation_group_id, language, title, subtitle, status, primary_cuisine, cuisines, tags, servings, total_minutes, difficulty, image_urls, ingredients, steps, published_at",
+        "id, translation_group_id, language, title, subtitle, description, status, primary_cuisine, cuisines, tags, servings, total_minutes, difficulty, nutrition, substitutions, image_urls, ingredients, steps, published_at",
       )
       .eq("status", "published")
       .order("title", { ascending: true });

@@ -24,6 +24,9 @@ type DashboardProps = {
     cuisine?: string;
     search?: string;
     mine?: string;
+    hasImage?: string;
+    missingNutrition?: string;
+    missingSubstitutions?: string;
   }>;
 };
 
@@ -63,10 +66,10 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
     getStatusCount(supabase, "published"),
     supabase
       .from("recipes")
-      .select("id, title, status, language, updated_at")
+      .select("id, title, status, language, updated_at, image_urls")
       .order("updated_at", { ascending: false })
       .limit(6)
-      .returns<Array<Pick<RecipeRecord, "id" | "title" | "status" | "language" | "updated_at">>>(),
+      .returns<Array<Pick<RecipeRecord, "id" | "title" | "status" | "language" | "updated_at" | "image_urls">>>(),
   ]);
 
   const normalizedSettings = normalizeAppSettings(appSettingsRes.data);
@@ -96,30 +99,6 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
     }
   }
   const translationGroupIds = [...new Set((recipes || []).map((recipe) => recipe.translation_group_id))];
-  const recipeIdsForThumbs = [
-    ...new Set([...(recipes || []).map((item) => item.id), ...recentRecipes.map((item) => item.id)]),
-  ];
-  const thumbnailMap = new Map<string, string | null>();
-  if (recipeIdsForThumbs.length > 0) {
-    const { data: imageRows, error: imageRowsError } = await supabase
-      .from("recipes")
-      .select("id, image_urls")
-      .in("id", recipeIdsForThumbs)
-      .returns<Array<{ id: string; image_urls: string[] | null }>>();
-
-    if (imageRowsError) {
-      console.warn(`[${listDebugId}] Recipe thumbnail query failed`, {
-        message: imageRowsError.message,
-        code: imageRowsError.code,
-        details: imageRowsError.details,
-        hint: imageRowsError.hint,
-      });
-    } else {
-      for (const row of imageRows || []) {
-        thumbnailMap.set(row.id, row.image_urls?.[0] || null);
-      }
-    }
-  }
 
   const translationMap = new Map<string, string[]>();
   if (translationGroupIds.length > 0) {
@@ -141,6 +120,9 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
   if (params.cuisine) activeParams.set("cuisine", params.cuisine);
   if (params.search) activeParams.set("search", params.search);
   if (params.mine) activeParams.set("mine", params.mine);
+  if (params.hasImage) activeParams.set("hasImage", params.hasImage);
+  if (params.missingNutrition) activeParams.set("missingNutrition", params.missingNutrition);
+  if (params.missingSubstitutions) activeParams.set("missingSubstitutions", params.missingSubstitutions);
 
   return (
     <div className="space-y-6">
@@ -190,7 +172,7 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
                   className="flex items-center justify-between rounded-md px-2 py-1.5 hover:bg-slate-50"
                 >
                   <span className="flex min-w-0 items-center gap-2">
-                    <RecipeThumbnail imageUrl={thumbnailMap.get(item.id)} title={item.title} size="sm" />
+                    <RecipeThumbnail imageUrl={item.image_urls?.[0] || null} title={item.title} size="sm" />
                     <span className="truncate text-sm text-slate-700">
                       {item.title} <span className="text-slate-400">· {item.language}</span>
                     </span>
@@ -254,6 +236,25 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
               </Button>
             </Link>
           </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="w-16 text-xs font-medium uppercase tracking-wide text-slate-500">{tr(lang, "Quality", "Jakość")}</span>
+            <Link href={buildHref(activeParams, { hasImage: params.hasImage === "1" ? null : "1" })}>
+              <Button type="button" variant={params.hasImage === "1" ? "primary" : "ghost"} size="sm">
+                {tr(lang, "Has image", "Ma zdjęcie")}
+              </Button>
+            </Link>
+            <Link href={buildHref(activeParams, { missingNutrition: params.missingNutrition === "1" ? null : "1" })}>
+              <Button type="button" variant={params.missingNutrition === "1" ? "primary" : "ghost"} size="sm">
+                {tr(lang, "Missing nutrition", "Brak nutrition")}
+              </Button>
+            </Link>
+            <Link href={buildHref(activeParams, { missingSubstitutions: params.missingSubstitutions === "1" ? null : "1" })}>
+              <Button type="button" variant={params.missingSubstitutions === "1" ? "primary" : "ghost"} size="sm">
+                {tr(lang, "Missing substitutions", "Brak zamienników")}
+              </Button>
+            </Link>
+          </div>
         </div>
 
         <form className="grid gap-3 border-t border-slate-200 pt-4 sm:grid-cols-4">
@@ -269,6 +270,9 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
           <input type="hidden" name="status" value={params.status || ""} />
           <input type="hidden" name="language" value={params.language || ""} />
           <input type="hidden" name="mine" value={params.mine || ""} />
+          <input type="hidden" name="hasImage" value={params.hasImage || ""} />
+          <input type="hidden" name="missingNutrition" value={params.missingNutrition || ""} />
+          <input type="hidden" name="missingSubstitutions" value={params.missingSubstitutions || ""} />
           <div className="flex items-center gap-2">
             <Button type="submit">{tr(lang, "Apply", "Zastosuj")}</Button>
             <Link href="/dashboard">
@@ -292,6 +296,8 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
               <tr>
                 <th className="px-4 py-3 text-left font-medium text-slate-600">{tr(lang, "Recipe", "Przepis")}</th>
                 <th className="px-4 py-3 text-left font-medium text-slate-600">{tr(lang, "Status", "Status")}</th>
+                <th className="px-4 py-3 text-left font-medium text-slate-600">{tr(lang, "Media", "Media")}</th>
+                <th className="px-4 py-3 text-left font-medium text-slate-600">{tr(lang, "kcal / serving", "kcal / porcja")}</th>
                 <th className="px-4 py-3 text-left font-medium text-slate-600">{tr(lang, "Cuisine", "Kuchnia")}</th>
                 <th className="px-4 py-3 text-left font-medium text-slate-600">{tr(lang, "Languages", "Języki")}</th>
                 <th className="px-4 py-3 text-left font-medium text-slate-600">{tr(lang, "Updated", "Aktualizacja")}</th>
@@ -309,7 +315,7 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
                   <tr key={recipe.id || `${recipe.translation_group_id}-${recipe.updated_at}`} className="hover:bg-slate-50/80">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <RecipeThumbnail imageUrl={thumbnailMap.get(recipe.id)} title={recipe.title} />
+                        <RecipeThumbnail imageUrl={recipe.image_urls?.[0] || null} title={recipe.title} />
                         <div className="min-w-0">
                           <p className="truncate font-medium text-slate-900">{recipe.title}</p>
                           <p className="text-xs text-slate-500">{recipe.language}</p>
@@ -318,6 +324,20 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
                     </td>
                     <td className="px-4 py-3">
                       <StatusBadge status={recipe.status} lang={lang} />
+                    </td>
+                    <td className="px-4 py-3">
+                      {recipe.image_urls?.length ? (
+                        <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                          {tr(lang, "Image", "Zdjęcie")}
+                        </span>
+                      ) : (
+                        <span className="inline-flex rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                          {tr(lang, "No image", "Brak zdjęcia")}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-slate-700">
+                      {typeof recipe.nutrition?.per_serving?.kcal === "number" ? recipe.nutrition.per_serving.kcal : "-"}
                     </td>
                     <td className="px-4 py-3 text-slate-700">{recipe.primary_cuisine || "-"}</td>
                     <td className="px-4 py-3 text-xs text-slate-600">
@@ -352,7 +372,7 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
               })}
               {(recipes || []).length === 0 ? (
                 <tr>
-                  <td className="px-4 py-8 text-sm text-slate-500" colSpan={6}>
+                  <td className="px-4 py-8 text-sm text-slate-500" colSpan={8}>
                     {tr(lang, "No recipes match the current filters. Adjust filters or create a new recipe.", "Brak przepisów dla wybranych filtrów. Zmień filtry lub dodaj nowy przepis.")}
                   </td>
                 </tr>

@@ -4,7 +4,17 @@ import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "re
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
-import type { IngredientItem, ProfileRole, RecipeRecord, RecipeStatus, StepItem } from "@/lib/types";
+import type {
+  IngredientItem,
+  IngredientSubstitution,
+  NutritionRecord,
+  NutritionValues,
+  ProfileRole,
+  RecipeRecord,
+  RecipeStatus,
+  StepItem,
+  SubstitutionAlternative,
+} from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
@@ -34,6 +44,7 @@ type RecipePayload = {
   language: string;
   title: string;
   subtitle: string | null;
+  description: string | null;
   status: RecipeStatus;
   primary_cuisine: string | null;
   cuisines: string[];
@@ -41,10 +52,61 @@ type RecipePayload = {
   servings: number | null;
   total_minutes: number | null;
   difficulty: string | null;
+  nutrition: NutritionRecord;
+  substitutions: IngredientSubstitution[];
   image_urls: string[];
   ingredients: ReturnType<typeof normalizeIngredients>;
   steps: ReturnType<typeof normalizeSteps>;
 };
+
+const nutritionKeys: Array<keyof NutritionValues> = [
+  "kcal",
+  "protein_g",
+  "fat_g",
+  "carbs_g",
+  "fiber_g",
+  "salt_g",
+];
+
+function toNutritionInput(values?: Partial<NutritionValues>) {
+  return {
+    kcal: values?.kcal != null ? String(values.kcal) : "",
+    protein_g: values?.protein_g != null ? String(values.protein_g) : "",
+    fat_g: values?.fat_g != null ? String(values.fat_g) : "",
+    carbs_g: values?.carbs_g != null ? String(values.carbs_g) : "",
+    fiber_g: values?.fiber_g != null ? String(values.fiber_g) : "",
+    salt_g: values?.salt_g != null ? String(values.salt_g) : "",
+  };
+}
+
+function normalizeNutritionValues(input: Record<keyof NutritionValues, string>) {
+  const values: Partial<NutritionValues> = {};
+  for (const key of nutritionKeys) {
+    const raw = input[key].trim();
+    if (!raw) continue;
+    const parsed = Number(raw);
+    if (Number.isFinite(parsed) && parsed >= 0) {
+      values[key] = parsed;
+    }
+  }
+  return values;
+}
+
+function normalizeSubstitutions(items: IngredientSubstitution[]) {
+  return items
+    .map((item) => ({
+      ingredient_key: item.ingredient_key.trim(),
+      alternatives: (item.alternatives || [])
+        .map((alt) => ({
+          alt_name: alt.alt_name.trim(),
+          ratio: alt.ratio?.trim() || undefined,
+          note: alt.note?.trim() || undefined,
+          dietary_tags: (alt.dietary_tags || []).map((tag) => tag.trim()).filter(Boolean),
+        }))
+        .filter((alt) => alt.alt_name.length > 0),
+    }))
+    .filter((item) => item.ingredient_key.length > 0 && item.alternatives.length > 0);
+}
 
 function statusOptionsForRole(role: ProfileRole, mode: "create" | "edit", currentStatus: RecipeStatus) {
   if (role === "admin") return allStatuses;
@@ -61,6 +123,7 @@ function statusOptionsForRole(role: ProfileRole, mode: "create" | "edit", curren
 function normalizeIngredients(items: IngredientItem[]) {
   return items
     .map((item) => ({
+      ingredient_key: item.ingredient_key?.trim() || undefined,
       name: item.name.trim(),
       amount: item.amount.trim(),
       unit: item.unit.trim(),
@@ -111,6 +174,7 @@ export function RecipeForm({
 
   const [title, setTitle] = useState(recipe?.title || "");
   const [subtitle, setSubtitle] = useState(recipe?.subtitle || "");
+  const [description, setDescription] = useState(recipe?.description || "");
   const [recipeLanguage, setRecipeLanguage] = useState(
     recipe?.language || language || defaultLanguage || enabledLanguages[0] || "en",
   );
@@ -121,6 +185,15 @@ export function RecipeForm({
   const [servings, setServings] = useState(recipe?.servings?.toString() || "");
   const [totalMinutes, setTotalMinutes] = useState(recipe?.total_minutes?.toString() || "");
   const [difficulty, setDifficulty] = useState(recipe?.difficulty || "");
+  const [nutritionPerServing, setNutritionPerServing] = useState<Record<keyof NutritionValues, string>>(
+    toNutritionInput(recipe?.nutrition?.per_serving),
+  );
+  const [nutritionPer100g, setNutritionPer100g] = useState<Record<keyof NutritionValues, string>>(
+    toNutritionInput(recipe?.nutrition?.per_100g),
+  );
+  const [substitutions, setSubstitutions] = useState<IngredientSubstitution[]>(
+    Array.isArray(recipe?.substitutions) ? recipe!.substitutions : [],
+  );
   const [imageUrls, setImageUrls] = useState<string[]>(recipe?.image_urls || []);
   const [newImageUrl, setNewImageUrl] = useState("");
   const [ingredients, setIngredients] = useState<IngredientItem[]>(
@@ -144,6 +217,7 @@ export function RecipeForm({
       language: recipe?.language || language || defaultLanguage || enabledLanguages[0] || "en",
       title: recipe?.title || "",
       subtitle: recipe?.subtitle || null,
+      description: recipe?.description || null,
       status: recipe?.status || (role === "reviewer" ? "in_review" : "draft"),
       primary_cuisine: recipe?.primary_cuisine || null,
       cuisines: recipe?.cuisines || [],
@@ -151,6 +225,8 @@ export function RecipeForm({
       servings: recipe?.servings ?? null,
       total_minutes: recipe?.total_minutes ?? null,
       difficulty: recipe?.difficulty || null,
+      nutrition: recipe?.nutrition || {},
+      substitutions: recipe?.substitutions || [],
       image_urls: recipe?.image_urls || [],
       ingredients: recipe?.ingredients || [],
       steps: recipe?.steps || [],
@@ -169,6 +245,7 @@ export function RecipeForm({
       language: recipeLanguage,
       title: title.trim(),
       subtitle: subtitle.trim() || null,
+      description: description.trim() || null,
       status,
       primary_cuisine: primaryCuisine || null,
       cuisines: selectedCuisines,
@@ -176,14 +253,22 @@ export function RecipeForm({
       servings: servings,
       total_minutes: totalMinutes,
       difficulty: difficulty || null,
+      nutrition: {
+        per_serving: normalizeNutritionValues(nutritionPerServing),
+        per_100g: normalizeNutritionValues(nutritionPer100g),
+      },
+      substitutions: normalizeSubstitutions(substitutions),
       image_urls: imageUrls,
       ingredients: normalizeIngredients(ingredients),
       steps: normalizeSteps(steps),
     }),
     [
+      description,
       difficulty,
       imageUrls,
       ingredients,
+      nutritionPer100g,
+      nutritionPerServing,
       primaryCuisine,
       recipe?.translation_group_id,
       recipeLanguage,
@@ -192,6 +277,7 @@ export function RecipeForm({
       status,
       steps,
       subtitle,
+      substitutions,
       tagsText,
       title,
       totalMinutes,
@@ -216,6 +302,11 @@ export function RecipeForm({
       const nextImageUrls = Array.isArray(candidate.image_urls)
         ? candidate.image_urls.map((item) => item.trim()).filter(Boolean)
         : [];
+      const nextSubstitutions = Array.isArray(candidate.substitutions) ? candidate.substitutions : [];
+      const nextNutrition: NutritionRecord =
+        candidate.nutrition && typeof candidate.nutrition === "object"
+          ? (candidate.nutrition as NutritionRecord)
+          : {};
 
       const servingsNumber =
         candidate.servings && String(candidate.servings).trim() !== ""
@@ -241,11 +332,22 @@ export function RecipeForm({
       if (totalMinutesNumber !== null && !Number.isFinite(totalMinutesNumber)) {
         return { payload: null, message: tt("Total minutes must be a number or empty.", "Czas całkowity musi być liczbą lub pusty.") };
       }
+      for (const key of nutritionKeys) {
+        const servingValue = nextNutrition.per_serving?.[key];
+        const per100gValue = nextNutrition.per_100g?.[key];
+        if (servingValue != null && (!Number.isFinite(servingValue) || servingValue < 0)) {
+          return { payload: null, message: tt("Nutrition values must be numbers >= 0.", "Wartości nutrition muszą być liczbami >= 0.") };
+        }
+        if (per100gValue != null && (!Number.isFinite(per100gValue) || per100gValue < 0)) {
+          return { payload: null, message: tt("Nutrition values must be numbers >= 0.", "Wartości nutrition muszą być liczbami >= 0.") };
+        }
+      }
 
       const payload: RecipePayload = {
         language: nextLanguage,
         title: nextTitle,
         subtitle: candidate.subtitle,
+        description: candidate.description,
         status: nextStatus,
         primary_cuisine: candidate.primary_cuisine || null,
         cuisines: nextCuisines,
@@ -253,6 +355,8 @@ export function RecipeForm({
         servings: servingsNumber,
         total_minutes: totalMinutesNumber,
         difficulty: candidate.difficulty,
+        nutrition: nextNutrition,
+        substitutions: nextSubstitutions,
         image_urls: nextImageUrls,
         ingredients: nextIngredients,
         steps: nextSteps,
@@ -339,7 +443,7 @@ export function RecipeForm({
         const refetch = await supabase
           .from("recipes")
           .select(
-            "id, translation_group_id, language, title, subtitle, status, primary_cuisine, cuisines, tags, servings, total_minutes, difficulty, image_urls, ingredients, steps, created_by, updated_by, created_at, updated_at, published_at",
+            "id, translation_group_id, language, title, subtitle, description, status, primary_cuisine, cuisines, tags, servings, total_minutes, difficulty, nutrition, substitutions, image_urls, ingredients, steps, created_by, updated_by, created_at, updated_at, published_at",
           )
           .eq("id", result.data.id)
           .maybeSingle<RecipeRecord>();
@@ -353,6 +457,7 @@ export function RecipeForm({
           refreshedRecipe = refetch.data;
           setTitle(refreshedRecipe.title || "");
           setSubtitle(refreshedRecipe.subtitle || "");
+          setDescription(refreshedRecipe.description || "");
           setRecipeLanguage(refreshedRecipe.language || defaultLanguage || enabledLanguages[0] || "en");
           setStatus(refreshedRecipe.status);
           setPrimaryCuisine(refreshedRecipe.primary_cuisine || "");
@@ -369,6 +474,9 @@ export function RecipeForm({
               : "",
           );
           setDifficulty(refreshedRecipe.difficulty || "");
+          setNutritionPerServing(toNutritionInput(refreshedRecipe.nutrition?.per_serving));
+          setNutritionPer100g(toNutritionInput(refreshedRecipe.nutrition?.per_100g));
+          setSubstitutions(Array.isArray(refreshedRecipe.substitutions) ? refreshedRecipe.substitutions : []);
           setImageUrls(Array.isArray(refreshedRecipe.image_urls) ? refreshedRecipe.image_urls : []);
           setIngredients(
             Array.isArray(refreshedRecipe.ingredients) && refreshedRecipe.ingredients.length > 0
@@ -387,6 +495,7 @@ export function RecipeForm({
                 language: refreshedRecipe.language,
                 title: refreshedRecipe.title,
                 subtitle: refreshedRecipe.subtitle,
+                description: refreshedRecipe.description,
                 status: refreshedRecipe.status,
                 primary_cuisine: refreshedRecipe.primary_cuisine,
                 cuisines: refreshedRecipe.cuisines,
@@ -394,6 +503,8 @@ export function RecipeForm({
                 servings: refreshedRecipe.servings,
                 total_minutes: refreshedRecipe.total_minutes,
                 difficulty: refreshedRecipe.difficulty,
+                nutrition: refreshedRecipe.nutrition,
+                substitutions: refreshedRecipe.substitutions,
                 image_urls: refreshedRecipe.image_urls,
                 ingredients: refreshedRecipe.ingredients,
                 steps: refreshedRecipe.steps,
@@ -513,6 +624,78 @@ export function RecipeForm({
     }
     setImageUrls((prev) => [...prev, trimmed]);
     setNewImageUrl("");
+  }
+
+  function getIngredientSlotKey(item: IngredientItem, index: number) {
+    const normalized = item.ingredient_key?.trim();
+    return normalized && normalized.length > 0 ? normalized : `ingredient_${index + 1}`;
+  }
+
+  function getAlternativesForIngredient(slotKey: string): SubstitutionAlternative[] {
+    const found = substitutions.find((item) => item.ingredient_key === slotKey);
+    return found?.alternatives || [];
+  }
+
+  function addAlternative(slotKey: string) {
+    setSubstitutions((prev) => {
+      const existing = prev.find((item) => item.ingredient_key === slotKey);
+      if (!existing) {
+        return [
+          ...prev,
+          {
+            ingredient_key: slotKey,
+            alternatives: [{ alt_name: "", ratio: "", note: "", dietary_tags: [] }],
+          },
+        ];
+      }
+      return prev.map((item) =>
+        item.ingredient_key === slotKey
+          ? {
+              ...item,
+              alternatives: [...item.alternatives, { alt_name: "", ratio: "", note: "", dietary_tags: [] }],
+            }
+          : item,
+      );
+    });
+  }
+
+  function updateAlternative(
+    slotKey: string,
+    alternativeIndex: number,
+    field: "alt_name" | "ratio" | "note" | "dietary_tags",
+    value: string,
+  ) {
+    setSubstitutions((prev) =>
+      prev.map((item) => {
+        if (item.ingredient_key !== slotKey) return item;
+        const alternatives = item.alternatives.map((alt, idx) => {
+          if (idx !== alternativeIndex) return alt;
+          if (field === "dietary_tags") {
+            return {
+              ...alt,
+              dietary_tags: value
+                .split(",")
+                .map((tag) => tag.trim())
+                .filter(Boolean),
+            };
+          }
+          return { ...alt, [field]: value };
+        });
+        return { ...item, alternatives };
+      }),
+    );
+  }
+
+  function removeAlternative(slotKey: string, alternativeIndex: number) {
+    setSubstitutions((prev) =>
+      prev
+        .map((item) =>
+          item.ingredient_key !== slotKey
+            ? item
+            : { ...item, alternatives: item.alternatives.filter((_, idx) => idx !== alternativeIndex) },
+        )
+        .filter((item) => item.alternatives.length > 0),
+    );
   }
 
   return (
@@ -650,6 +833,67 @@ export function RecipeForm({
       </section>
 
       <section className="space-y-4 rounded-xl border border-slate-200 bg-white/70 p-4 backdrop-blur-xl">
+        <header className="space-y-1 border-b border-slate-200 pb-3">
+          <h2 className="text-base font-semibold text-slate-900">{tt("Description", "Opis")}</h2>
+          <p className="text-sm text-slate-600">{tt("Add a concise 1-2 sentence description for storefront and app preview.", "Dodaj krótki opis 1-2 zdania dla widoku w aplikacji.")}</p>
+        </header>
+        <Textarea
+          value={description}
+          onChange={(event) => setDescription(event.target.value)}
+          placeholder={tt("A warming tomato soup with fresh basil and gentle acidity.", "Rozgrzewająca zupa pomidorowa ze świeżą bazylią i delikatną kwasowością.")}
+          disabled={!canEditContent}
+          className="min-h-24"
+        />
+      </section>
+
+      <section className="space-y-4 rounded-xl border border-slate-200 bg-white/70 p-4 backdrop-blur-xl">
+        <header className="space-y-1 border-b border-slate-200 pb-3">
+          <h2 className="text-base font-semibold text-slate-900">{tt("Nutrition", "Nutrition")}</h2>
+          <p className="text-sm text-slate-600">{tt("Maintain nutrition per serving and per 100g. Values must be numbers >= 0.", "Uzupełnij nutrition na porcję i na 100g. Wartości muszą być liczbami >= 0.")}</p>
+        </header>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <h3 className="text-sm font-semibold text-slate-700">{tt("Per serving", "Na porcję")}</h3>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {nutritionKeys.map((key) => (
+                <FormField key={`per-serving-${key}`} label={key}>
+                  <Input
+                    type="number"
+                    min={0}
+                    step="any"
+                    value={nutritionPerServing[key]}
+                    disabled={!canEditContent}
+                    onChange={(event) =>
+                      setNutritionPerServing((prev) => ({ ...prev, [key]: event.target.value }))
+                    }
+                  />
+                </FormField>
+              ))}
+            </div>
+          </div>
+          <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <h3 className="text-sm font-semibold text-slate-700">{tt("Per 100g", "Na 100g")}</h3>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {nutritionKeys.map((key) => (
+                <FormField key={`per-100g-${key}`} label={key}>
+                  <Input
+                    type="number"
+                    min={0}
+                    step="any"
+                    value={nutritionPer100g[key]}
+                    disabled={!canEditContent}
+                    onChange={(event) =>
+                      setNutritionPer100g((prev) => ({ ...prev, [key]: event.target.value }))
+                    }
+                  />
+                </FormField>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="space-y-4 rounded-xl border border-slate-200 bg-white/70 p-4 backdrop-blur-xl">
         <header className="flex items-start justify-between gap-3 border-b border-slate-200 pb-3">
           <div>
             <h2 className="text-base font-semibold text-slate-900">{tt("Product images", "Zdjęcia produktu")}</h2>
@@ -710,14 +954,72 @@ export function RecipeForm({
 
         <div className="space-y-2">
           {ingredients.map((ingredient, index) => (
-            <div key={`ingredient-${index}`} className="grid gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:grid-cols-4">
-              <Input placeholder={tt("Name", "Nazwa")} value={ingredient.name} disabled={!canEditContent} onChange={(e) => setIngredients((prev) => prev.map((item, i) => (i === index ? { ...item, name: e.target.value } : item)))} />
-              <Input placeholder={tt("Amount", "Ilość")} value={ingredient.amount} disabled={!canEditContent} onChange={(e) => setIngredients((prev) => prev.map((item, i) => (i === index ? { ...item, amount: e.target.value } : item)))} />
-              <Input placeholder={tt("Unit", "Jednostka")} value={ingredient.unit} disabled={!canEditContent} onChange={(e) => setIngredients((prev) => prev.map((item, i) => (i === index ? { ...item, unit: e.target.value } : item)))} />
-              <Input placeholder={tt("Note (optional)", "Notatka (opcjonalnie)")} value={ingredient.note || ""} disabled={!canEditContent} onChange={(e) => setIngredients((prev) => prev.map((item, i) => (i === index ? { ...item, note: e.target.value } : item)))} />
+            <div key={`ingredient-${index}`} className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <div className="grid gap-2 sm:grid-cols-5">
+                <Input placeholder={tt("ingredient_key (optional)", "ingredient_key (opcjonalnie)")} value={ingredient.ingredient_key || ""} disabled={!canEditContent} onChange={(e) => setIngredients((prev) => prev.map((item, i) => (i === index ? { ...item, ingredient_key: e.target.value } : item)))} />
+                <Input placeholder={tt("Name", "Nazwa")} value={ingredient.name} disabled={!canEditContent} onChange={(e) => setIngredients((prev) => prev.map((item, i) => (i === index ? { ...item, name: e.target.value } : item)))} />
+                <Input placeholder={tt("Amount", "Ilość")} value={ingredient.amount} disabled={!canEditContent} onChange={(e) => setIngredients((prev) => prev.map((item, i) => (i === index ? { ...item, amount: e.target.value } : item)))} />
+                <Input placeholder={tt("Unit", "Jednostka")} value={ingredient.unit} disabled={!canEditContent} onChange={(e) => setIngredients((prev) => prev.map((item, i) => (i === index ? { ...item, unit: e.target.value } : item)))} />
+                <Input placeholder={tt("Note (optional)", "Notatka (opcjonalnie)")} value={ingredient.note || ""} disabled={!canEditContent} onChange={(e) => setIngredients((prev) => prev.map((item, i) => (i === index ? { ...item, note: e.target.value } : item)))} />
+              </div>
+              <div className="space-y-2 rounded-md border border-slate-200 bg-white p-2">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{tt("Substitutions", "Zamienniki")}</p>
+                {getAlternativesForIngredient(getIngredientSlotKey(ingredient, index)).map((alternative, altIndex) => (
+                  <div key={`alt-${index}-${altIndex}`} className="grid gap-2 sm:grid-cols-4">
+                    <Input
+                      placeholder={tt("Alternative name", "Nazwa zamiennika")}
+                      value={alternative.alt_name}
+                      disabled={!canEditContent}
+                      onChange={(event) =>
+                        updateAlternative(getIngredientSlotKey(ingredient, index), altIndex, "alt_name", event.target.value)
+                      }
+                    />
+                    <Input
+                      placeholder={tt("Ratio (e.g. 1:1)", "Proporcja (np. 1:1)")}
+                      value={alternative.ratio || ""}
+                      disabled={!canEditContent}
+                      onChange={(event) =>
+                        updateAlternative(getIngredientSlotKey(ingredient, index), altIndex, "ratio", event.target.value)
+                      }
+                    />
+                    <Input
+                      placeholder={tt("Dietary tags (comma)", "Tagi dietetyczne (po przecinku)")}
+                      value={(alternative.dietary_tags || []).join(", ")}
+                      disabled={!canEditContent}
+                      onChange={(event) =>
+                        updateAlternative(getIngredientSlotKey(ingredient, index), altIndex, "dietary_tags", event.target.value)
+                      }
+                    />
+                    <Input
+                      placeholder={tt("Note", "Notatka")}
+                      value={alternative.note || ""}
+                      disabled={!canEditContent}
+                      onChange={(event) =>
+                        updateAlternative(getIngredientSlotKey(ingredient, index), altIndex, "note", event.target.value)
+                      }
+                    />
+                    {canEditContent ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="w-fit text-red-600 hover:bg-red-50"
+                        onClick={() => removeAlternative(getIngredientSlotKey(ingredient, index), altIndex)}
+                      >
+                        {tt("Remove alternative", "Usuń zamiennik")}
+                      </Button>
+                    ) : null}
+                  </div>
+                ))}
+                {canEditContent ? (
+                  <Button type="button" variant="secondary" size="sm" onClick={() => addAlternative(getIngredientSlotKey(ingredient, index))}>
+                    {tt("Add alternative", "Dodaj zamiennik")}
+                  </Button>
+                ) : null}
+              </div>
               {canEditContent ? (
                 <Button type="button" variant="ghost" size="sm" className="w-fit text-red-600 hover:bg-red-50" onClick={() => setIngredients((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev))}>
-                  {tt("Remove", "Usuń")}
+                  {tt("Remove ingredient", "Usuń składnik")}
                 </Button>
               ) : null}
             </div>
@@ -751,6 +1053,97 @@ export function RecipeForm({
               ) : null}
             </div>
           ))}
+        </div>
+      </section>
+
+      <section className="space-y-4 rounded-xl border border-slate-200 bg-white/70 p-4 backdrop-blur-xl">
+        <header className="space-y-1 border-b border-slate-200 pb-3">
+          <h2 className="text-base font-semibold text-slate-900">{tt("Recipe Preview", "Podgląd przepisu")}</h2>
+          <p className="text-sm text-slate-600">{tt("Live preview for admin quality check before publishing.", "Podgląd na żywo do kontroli jakości przed publikacją.")}</p>
+        </header>
+
+        <div className="grid gap-4 lg:grid-cols-[1.3fr,1fr]">
+          <div className="space-y-3">
+            <div className="aspect-[16/9] overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
+              {imageUrls[0] ? (
+                <Image src={imageUrls[0]} alt={title || "Recipe"} width={1200} height={675} className="h-full w-full object-cover" unoptimized />
+              ) : (
+                <div className="flex h-full items-center justify-center text-sm text-slate-500">{tt("No hero image yet", "Brak zdjęcia głównego")}</div>
+              )}
+            </div>
+            <div>
+              <h3 className="text-xl font-semibold text-slate-900">{title || tt("Untitled recipe", "Przepis bez tytułu")}</h3>
+              <p className="mt-1 text-sm text-slate-600">
+                {description || subtitle || tt("Add a short description to improve recipe quality.", "Dodaj krótki opis, aby poprawić jakość przepisu.")}
+              </p>
+            </div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <p className="mb-2 text-sm font-semibold text-slate-700">{tt("Nutrition", "Nutrition")}</p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{tt("Per serving", "Na porcję")}</p>
+                  <ul className="mt-1 space-y-1 text-sm text-slate-700">
+                    {nutritionKeys.map((key) => (
+                      <li key={`preview-serving-${key}`}>{key}: {nutritionPerServing[key] || "-"}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{tt("Per 100g", "Na 100g")}</p>
+                  <ul className="mt-1 space-y-1 text-sm text-slate-700">
+                    {nutritionKeys.map((key) => (
+                      <li key={`preview-100g-${key}`}>{key}: {nutritionPer100g[key] || "-"}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <p className="text-sm font-semibold text-slate-700">{tt("Ingredients", "Składniki")}</p>
+              <ul className="mt-2 space-y-1 text-sm text-slate-700">
+                {normalizeIngredients(ingredients).map((item, index) => (
+                  <li key={`preview-ingredient-${index}`}>
+                    {item.amount} {item.unit} {item.name} {item.note ? `(${item.note})` : ""}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <p className="text-sm font-semibold text-slate-700">{tt("Steps", "Kroki")}</p>
+              <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-slate-700">
+                {normalizeSteps(steps).map((item) => (
+                  <li key={`preview-step-${item.step_number}`}>
+                    {item.text}{" "}
+                    {item.timer_seconds ? <span className="text-slate-500">({item.timer_seconds}s)</span> : null}
+                  </li>
+                ))}
+              </ol>
+            </div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <p className="text-sm font-semibold text-slate-700">{tt("Substitutions", "Zamienniki")}</p>
+              {normalizeSubstitutions(substitutions).length === 0 ? (
+                <p className="mt-2 text-sm text-slate-500">{tt("No substitutions yet.", "Brak zamienników.")}</p>
+              ) : (
+                <div className="mt-2 space-y-2 text-sm text-slate-700">
+                  {normalizeSubstitutions(substitutions).map((item) => (
+                    <div key={`preview-sub-${item.ingredient_key}`}>
+                      <p className="font-medium">{item.ingredient_key}</p>
+                      <ul className="pl-4">
+                        {item.alternatives.map((alt, idx) => (
+                          <li key={`preview-alt-${item.ingredient_key}-${idx}`} className="list-disc">
+                            {alt.alt_name} {alt.ratio ? `(${alt.ratio})` : ""} {alt.note ? `- ${alt.note}` : ""}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </section>
 
