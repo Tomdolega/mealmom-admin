@@ -21,6 +21,7 @@ type TranslationsPanelProps = {
   recipes: TranslationItem[];
   enabledLanguages: string[];
   defaultLanguage: string;
+  canCreate: boolean;
 };
 
 export function TranslationsPanel({
@@ -28,29 +29,57 @@ export function TranslationsPanel({
   recipes,
   enabledLanguages,
   defaultLanguage,
+  canCreate,
 }: TranslationsPanelProps) {
   const [newLanguage, setNewLanguage] = useState(defaultLanguage);
 
   const usedLanguages = useMemo(() => recipes.map((item) => item.language), [recipes]);
-  const available = enabledLanguages.filter((language) => !usedLanguages.includes(language));
+  const missingLanguages = enabledLanguages.filter((language) => !usedLanguages.includes(language));
 
   return (
     <div className="space-y-4">
       <Card>
         <h2 className="text-lg font-semibold">Create new translation</h2>
         <p className="mt-1 text-sm text-slate-600">Open recipe form in the same translation group.</p>
-        <div className="mt-3 flex gap-2">
-          <Select value={newLanguage} onChange={(e) => setNewLanguage(e.target.value)}>
-            {(available.length ? available : enabledLanguages).map((language) => (
-              <option key={language} value={language}>
-                {language}
-              </option>
+        {canCreate ? (
+          <div className="mt-3 flex gap-2">
+            <Select value={newLanguage} onChange={(e) => setNewLanguage(e.target.value)}>
+              {(missingLanguages.length ? missingLanguages : enabledLanguages).map((language) => (
+                <option key={language} value={language}>
+                  {language}
+                </option>
+              ))}
+            </Select>
+            <Link href={`/recipes/new?translation_group_id=${translationGroupId}&language=${encodeURIComponent(newLanguage)}`}>
+              <Button type="button">Create translation</Button>
+            </Link>
+          </div>
+        ) : (
+          <p className="mt-3 text-sm text-slate-600">Reviewer mode: translations are read-only.</p>
+        )}
+      </Card>
+
+      <Card>
+        <h2 className="text-lg font-semibold">Missing languages</h2>
+        <p className="mt-1 text-sm text-slate-600">Enabled languages not yet present in this translation group.</p>
+        {missingLanguages.length === 0 ? (
+          <p className="mt-3 text-sm text-slate-600">No missing languages.</p>
+        ) : canCreate ? (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {missingLanguages.map((language) => (
+              <Link
+                key={language}
+                href={`/recipes/new?translation_group_id=${translationGroupId}&language=${encodeURIComponent(language)}`}
+              >
+                <Button type="button" variant="secondary" size="sm">
+                  Create {language}
+                </Button>
+              </Link>
             ))}
-          </Select>
-          <Link href={`/recipes/new?translation_group_id=${translationGroupId}&language=${encodeURIComponent(newLanguage)}`}>
-            <Button type="button">Create translation</Button>
-          </Link>
-        </div>
+          </div>
+        ) : (
+          <p className="mt-3 text-sm text-slate-600">Missing: {missingLanguages.join(", ")}</p>
+        )}
       </Card>
 
       <Card className="overflow-x-auto p-0">

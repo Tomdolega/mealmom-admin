@@ -11,7 +11,7 @@ type RecipeTranslationsProps = {
 type TranslationListItem = Pick<RecipeRecord, "id" | "language" | "title" | "status" | "updated_at">;
 
 export default async function RecipeTranslationsPage({ params }: RecipeTranslationsProps) {
-  const { supabase } = await getCurrentProfileOrRedirect();
+  const { supabase, profile } = await getCurrentProfileOrRedirect();
   const { id } = await params;
 
   const [{ data: rootRecipe }, { data: appSettings }] = await Promise.all([
@@ -44,6 +44,7 @@ export default async function RecipeTranslationsPage({ params }: RecipeTranslati
         recipes={translations || []}
         enabledLanguages={normalizedSettings.enabled_languages}
         defaultLanguage={normalizedSettings.default_language}
+        canCreate={profile.role !== "reviewer"}
       />
     </div>
   );

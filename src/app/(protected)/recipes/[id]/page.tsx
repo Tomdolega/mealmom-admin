@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { RecipeForm } from "@/components/recipe-form";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { StatusBadge } from "@/components/ui/badge";
 import { getCurrentProfileOrRedirect } from "@/lib/auth";
 import { normalizeAppSettings } from "@/lib/settings";
 import type { AppSettingsRecord, RecipeRecord } from "@/lib/types";
@@ -9,6 +11,8 @@ import type { AppSettingsRecord, RecipeRecord } from "@/lib/types";
 type RecipeEditProps = {
   params: Promise<{ id: string }>;
 };
+
+type TranslationSummaryItem = Pick<RecipeRecord, "id" | "language" | "status">;
 
 export default async function RecipeEditPage({ params }: RecipeEditProps) {
   const { supabase, profile } = await getCurrentProfileOrRedirect();
@@ -33,6 +37,13 @@ export default async function RecipeEditPage({ params }: RecipeEditProps) {
     notFound();
   }
 
+  const { data: translations } = await supabase
+    .from("recipes")
+    .select("id, language, status")
+    .eq("translation_group_id", recipe.translation_group_id)
+    .order("language", { ascending: true })
+    .returns<TranslationSummaryItem[]>();
+
   const normalizedSettings = normalizeAppSettings(appSettings);
 
   return (
@@ -45,6 +56,23 @@ export default async function RecipeEditPage({ params }: RecipeEditProps) {
           </Button>
         </Link>
       </div>
+
+      <Card className="space-y-3">
+        <h2 className="text-lg font-semibold">Translations summary</h2>
+        <div className="flex flex-wrap gap-2">
+          {(translations || []).map((translation) => (
+            <Link
+              key={translation.id}
+              href={`/recipes/${translation.id}`}
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+            >
+              <span>{translation.language}</span>
+              <StatusBadge status={translation.status} />
+            </Link>
+          ))}
+        </div>
+      </Card>
+
       <RecipeForm
         mode="edit"
         role={profile.role}
