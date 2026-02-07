@@ -41,10 +41,13 @@ Create `.env.local`:
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 NEXT_PUBLIC_SUPABASE_PRODUCT_IMAGES_BUCKET=recipe-images
+NEXT_PUBLIC_SITE_URL=https://joanka.cafe
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 ```
 
 If these are missing, `/login` shows a friendly setup message instead of crashing.
+
+`NEXT_PUBLIC_SITE_URL` is used by the invite flow to build `redirectTo` for Supabase invite emails (`<SITE_URL>/auth/callback`).
 
 ## Local Development
 
@@ -62,6 +65,20 @@ npm run lint
 npx tsc --noEmit
 npm run build
 ```
+
+## Supabase Auth URL Configuration (Required for Invites)
+
+In Supabase Dashboard -> Authentication -> URL Configuration:
+
+- Site URL: set to your production domain (for example `https://joanka.cafe`)
+- Redirect URLs:
+  - `https://joanka.cafe/auth/callback`
+  - `http://localhost:3000/auth/callback` (optional for local development)
+
+Invite flow now uses server-side service role only:
+- API route calls `auth.admin.inviteUserByEmail(email, { redirectTo: "<SITE_URL>/auth/callback" })`
+- `/auth/callback` exchanges `code` for session and redirects to `/set-password`
+- `/set-password` lets invited user set password, then redirects to `/dashboard`
 
 ## Supabase SQL Setup
 
@@ -149,8 +166,10 @@ Import notes:
 
 ## Main Routes
 
-- `/` public list of published recipes (optional `?language=en` filter)
+- `/` redirect to `/login`
 - `/login` email/password sign in
+- `/auth/callback` Supabase invite callback (code exchange)
+- `/set-password` invited user sets password
 - `/dashboard` recipes list + filters + export
 - `/recipes/new` create recipe (admin/editor)
 - `/recipes/[id]` edit recipe
@@ -167,5 +186,16 @@ For both admin and consumer reads to use the same Supabase project:
 1. In Vercel Project Settings -> Environment Variables, set:
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - `NEXT_PUBLIC_SITE_URL`
+   - `SUPABASE_SERVICE_ROLE_KEY` (server only, never exposed to client)
 2. Redeploy the latest commit.
-3. Open `/` in non-production or local dev and verify the debug banner host matches your Supabase project host.
+3. Verify invite flow by sending test invite from `/users`.
+
+## Manual Invite Test (Different Device)
+
+1. As admin, open `/users`, send invite to a fresh email.
+2. On another device/browser, open invite email and click the invite link.
+3. Confirm user lands on `/set-password` with message: "Invite accepted, set your password."
+4. Set new password and submit.
+5. Confirm redirect to `/dashboard`.
+6. Log out, then log in with invited email + new password on `/login`.

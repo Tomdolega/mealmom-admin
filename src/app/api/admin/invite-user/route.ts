@@ -54,7 +54,15 @@ export async function POST(request: Request) {
   }
 
   const admin = createAdminClient();
+  const requestUrl = new URL(request.url);
+  const appUrl =
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : requestUrl.origin);
+  const normalizedAppUrl = appUrl.replace(/\/+$/, "");
+  const redirectTo = `${normalizedAppUrl}/auth/callback`;
   const { data: inviteData, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
+    redirectTo,
     data: displayName ? { display_name: displayName } : undefined,
   });
 

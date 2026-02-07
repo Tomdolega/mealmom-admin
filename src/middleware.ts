@@ -5,6 +5,8 @@ import { hasSupabaseEnv, supabaseAnonKey, supabaseUrl } from "@/lib/supabase/env
 const publicExactPaths = new Set([
   "/",
   "/login",
+  "/set-password",
+  "/auth/callback",
   "/favicon.ico",
   "/robots.txt",
   "/sitemap.xml",
