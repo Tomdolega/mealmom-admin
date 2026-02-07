@@ -88,8 +88,35 @@ export function TranslationsPanel({
         </Card>
       </div>
 
-      <Card className="overflow-x-auto bg-white/70 p-0 backdrop-blur-xl">
-        <table className="min-w-full divide-y divide-slate-200 text-sm">
+      <Card className="bg-white/70 p-0 backdrop-blur-xl">
+        <div className="divide-y divide-slate-100 md:hidden">
+          {recipes.map((item) => (
+            <article key={`mobile-${item.id}`} className="space-y-3 px-4 py-4">
+              <div className="flex items-start gap-3">
+                <RecipeThumbnail imageUrl={item.image_urls?.[0] || null} title={item.title} />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium text-slate-900">{item.title}</p>
+                  <p className="mt-0.5 text-xs text-slate-500">{item.language}</p>
+                </div>
+                <StatusBadge status={item.status} lang={lang} />
+              </div>
+              <p className="text-xs text-slate-500">{new Date(item.updated_at).toLocaleString()}</p>
+              <Link href={`/recipes/${item.id}`}>
+                <Button type="button" variant="secondary" className="w-full">
+                  {tr(lang, "Open", "Otwórz")}
+                </Button>
+              </Link>
+            </article>
+          ))}
+          {recipes.length === 0 ? (
+            <div className="px-4 py-8 text-sm text-slate-500">
+              {tr(lang, "No translations found in this group yet.", "Brak tłumaczeń w tej grupie.")}
+            </div>
+          ) : null}
+        </div>
+
+        <div className="hidden overflow-x-auto md:block">
+          <table className="min-w-full divide-y divide-slate-200 text-sm">
           <thead className="bg-slate-50">
             <tr>
               <th className="px-4 py-3 text-left font-medium text-slate-600">{tr(lang, "Language", "Język")}</th>
@@ -130,7 +157,8 @@ export function TranslationsPanel({
               </tr>
             ) : null}
           </tbody>
-        </table>
+          </table>
+        </div>
       </Card>
     </div>
   );

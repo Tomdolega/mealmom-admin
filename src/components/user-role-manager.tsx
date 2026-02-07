@@ -149,8 +149,55 @@ export function UserRoleManager({ profiles }: UserRoleManagerProps) {
         </div>
       </Card>
 
-      <Card className="overflow-x-auto p-0">
-        <table className="min-w-full divide-y divide-slate-200 text-sm">
+      <Card className="p-0">
+        <div className="divide-y divide-slate-100 md:hidden">
+          {items.map((profile) => {
+            const selected = pendingRoles[profile.id] || profile.role;
+            const changed = selected !== profile.role;
+            return (
+              <article key={`mobile-${profile.id}`} className="space-y-3 px-4 py-4">
+                <div>
+                  <p className="font-medium text-slate-900">{profile.display_name || tr(lang, "No display name", "Brak nazwy")}</p>
+                  <p className="font-mono text-xs text-slate-500">{profile.id}</p>
+                </div>
+                <p className="text-sm text-slate-600">{tr(lang, "Current role", "Aktualna rola")}: {profile.role}</p>
+                <Select
+                  value={selected}
+                  disabled={savingId === profile.id}
+                  onChange={(e) =>
+                    setPendingRoles((prev) => ({
+                      ...prev,
+                      [profile.id]: e.target.value as ProfileRole,
+                    }))
+                  }
+                >
+                  {roles.map((role) => (
+                    <option key={role} value={role}>
+                      {role}
+                    </option>
+                  ))}
+                </Select>
+                <Button
+                  type="button"
+                  variant={changed ? "primary" : "secondary"}
+                  disabled={!changed || savingId === profile.id}
+                  className="w-full"
+                  onClick={() => void applyRoleChange(profile.id)}
+                >
+                  {savingId === profile.id ? tr(lang, "Saving...", "Zapisywanie...") : tr(lang, "Apply", "Zastosuj")}
+                </Button>
+              </article>
+            );
+          })}
+          {items.length === 0 ? (
+            <div className="px-4 py-8 text-sm text-slate-500">
+              {tr(lang, "No user profiles found.", "Nie znaleziono profili użytkowników.")}
+            </div>
+          ) : null}
+        </div>
+
+        <div className="hidden overflow-x-auto md:block">
+          <table className="min-w-full divide-y divide-slate-200 text-sm">
           <thead className="bg-slate-50">
             <tr>
               <th className="px-4 py-3 text-left font-medium text-slate-600">{tr(lang, "User", "Użytkownik")}</th>
@@ -212,7 +259,8 @@ export function UserRoleManager({ profiles }: UserRoleManagerProps) {
               </tr>
             ) : null}
           </tbody>
-        </table>
+          </table>
+        </div>
       </Card>
     </div>
   );

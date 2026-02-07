@@ -412,7 +412,20 @@ export function ImportRecipesPanel({ enabledLanguages, enabledCuisines }: Import
       <section className="space-y-3 rounded-xl border border-slate-200 bg-white/70 p-5 backdrop-blur-xl">
         <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">{tt("Step 3: Preview", "Krok 3: Podgląd")}</h3>
         <p className="text-sm text-slate-600">{tt("First 5 valid rows shown in management view before import.", "Pierwsze 5 poprawnych wierszy przed importem.")}</p>
-        <div className="overflow-x-auto rounded-md border border-slate-200">
+        <div className="space-y-2 rounded-md border border-slate-200 p-3 md:hidden">
+          {validDiffPreview.map((item) => (
+            <article key={`valid-preview-mobile-${item.rowIndex}`} className="space-y-1 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm">
+              <p className="font-medium text-slate-800">#{item.rowIndex} · {item.payload?.title || "-"}</p>
+              <p className="text-slate-600">{tt("Language", "Język")}: {item.payload?.language || "-"}</p>
+              <p className="text-slate-600">{tt("Status", "Status")}: {item.payload?.status || "-"}</p>
+              <p className="text-slate-600">
+                {tt("Counts", "Liczby")}: {tt("Cuisines", "Kuchnie")} {item.payload?.cuisines.length || 0}, {tt("Ingredients", "Składniki")} {item.payload?.ingredients.length || 0}, {tt("Steps", "Kroki")} {item.payload?.steps.length || 0}
+              </p>
+            </article>
+          ))}
+          {validDiffPreview.length === 0 ? <p className="text-sm text-slate-500">{tt("No valid rows to preview yet.", "Brak poprawnych wierszy do podglądu.")}</p> : null}
+        </div>
+        <div className="hidden overflow-x-auto rounded-md border border-slate-200 md:block">
           <table className="min-w-full divide-y divide-slate-200 text-sm">
             <thead className="bg-slate-50">
               <tr>
@@ -473,7 +486,23 @@ export function ImportRecipesPanel({ enabledLanguages, enabledCuisines }: Import
 
       <section className="space-y-3 rounded-xl border border-slate-200 bg-white/70 p-5 backdrop-blur-xl">
         <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">{tt("Row issues (first 20)", "Błędy wierszy (pierwsze 20)")}</h3>
-        <div className="overflow-x-auto rounded-md border border-slate-200">
+        <div className="space-y-2 rounded-md border border-slate-200 p-3 md:hidden">
+          {previewRows.map((row, index) => {
+            const result = results[index];
+            return (
+              <article key={`preview-mobile-${index}`} className="space-y-1 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm">
+                <p className="font-medium text-slate-800">#{index + 2} · {row.title || "-"}</p>
+                <p className="text-slate-600">{tt("Language", "Język")}: {row.language || "-"}</p>
+                <p className="text-slate-600">{tt("Status", "Status")}: {row.status || "draft"}</p>
+                <p className={result?.errors.length ? "text-red-700" : "text-emerald-700"}>
+                  {result?.errors.join("; ") || tt("No issues", "Brak problemów")}
+                </p>
+              </article>
+            );
+          })}
+          {previewRows.length === 0 ? <p className="text-sm text-slate-500">{tt("Upload a CSV/XLSX file to start validation.", "Wgraj plik CSV/XLSX, aby rozpocząć walidację.")}</p> : null}
+        </div>
+        <div className="hidden overflow-x-auto rounded-md border border-slate-200 md:block">
           <table className="min-w-full divide-y divide-slate-200 text-sm">
             <thead className="bg-slate-50">
               <tr>

@@ -347,8 +347,64 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
           </p>
         ) : null}
 
-        <Card className="overflow-x-auto p-0">
-          <table className="min-w-full divide-y divide-slate-200 text-sm">
+        <Card className="p-0">
+          <div className="divide-y divide-slate-100 md:hidden">
+            {filteredRecipes.map((recipe) => {
+              const recipeId = typeof recipe.id === "string" && recipe.id.trim().length > 0 ? recipe.id : null;
+              const servingKcal = (recipe.nutrition?.per_serving as { kcal?: number | null } | undefined)?.kcal;
+              if (!recipeId) {
+                console.warn(`[${listDebugId}] Missing recipe.id in dashboard row`, recipe);
+              }
+
+              return (
+                <article key={`mobile-${recipe.id || recipe.translation_group_id}-${recipe.updated_at}`} className="space-y-3 px-4 py-4">
+                  <div className="flex items-start gap-3">
+                    <RecipeThumbnail imageUrl={recipe.image_urls?.[0] || null} title={recipe.title} />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium text-slate-900">{recipe.title}</p>
+                      <p className="mt-0.5 text-xs text-slate-500">{recipe.language}</p>
+                    </div>
+                    <StatusBadge status={recipe.status} lang={lang} />
+                  </div>
+                  <div className="flex flex-wrap gap-2 text-xs text-slate-600">
+                    <span>{tr(lang, "Cuisine", "Kuchnia")}: {recipe.primary_cuisine || "-"}</span>
+                    <span>{tr(lang, "kcal / serving", "kcal / porcja")}: {typeof servingKcal === "number" ? servingKcal : "-"}</span>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    {tr(lang, "Languages", "Języki")}: {(translationMap.get(recipe.translation_group_id) || [recipe.language]).join(", ")}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {recipeId ? (
+                      <Link href={`/recipes/${recipeId}`} className="flex-1 sm:flex-none">
+                        <Button type="button" variant="secondary" className="w-full sm:w-auto">
+                          {tr(lang, "Open", "Otwórz")}
+                        </Button>
+                      </Link>
+                    ) : (
+                      <Button type="button" variant="secondary" disabled className="w-full sm:w-auto">
+                        {tr(lang, "Open", "Otwórz")}
+                      </Button>
+                    )}
+                    {profile.role !== "reviewer" && recipeId ? (
+                      <Link href={`/recipes/${recipeId}/translations`} className="flex-1 sm:flex-none">
+                        <Button type="button" variant="ghost" className="w-full sm:w-auto">
+                          {tr(lang, "Translations", "Tłumaczenia")}
+                        </Button>
+                      </Link>
+                    ) : null}
+                  </div>
+                </article>
+              );
+            })}
+            {filteredRecipes.length === 0 ? (
+              <div className="px-4 py-8 text-sm text-slate-500">
+                {tr(lang, "No recipes match the current filters. Adjust filters or create a new recipe.", "Brak przepisów dla wybranych filtrów. Zmień filtry lub dodaj nowy przepis.")}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="hidden overflow-x-auto md:block">
+            <table className="min-w-full divide-y divide-slate-200 text-sm">
             <thead className="bg-slate-50">
               <tr>
                 <th className="px-4 py-3 text-left font-medium text-slate-600">{tr(lang, "Recipe", "Przepis")}</th>
@@ -436,7 +492,8 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
                 </tr>
               ) : null}
             </tbody>
-          </table>
+            </table>
+          </div>
         </Card>
       </section>
     </div>
