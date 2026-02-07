@@ -15,10 +15,31 @@ type RecipeEditProps = {
 };
 
 type TranslationSummaryItem = Pick<RecipeRecord, "id" | "language" | "status" | "title" | "image_urls">;
-type RecipeCoreRow = Omit<RecipeRecord, "image_urls">;
+type RecipeCoreRow = Pick<
+  RecipeRecord,
+  | "id"
+  | "translation_group_id"
+  | "language"
+  | "title"
+  | "subtitle"
+  | "status"
+  | "primary_cuisine"
+  | "cuisines"
+  | "tags"
+  | "servings"
+  | "total_minutes"
+  | "difficulty"
+  | "ingredients"
+  | "steps"
+  | "created_by"
+  | "updated_by"
+  | "created_at"
+  | "updated_at"
+  | "published_at"
+>;
 
 const RECIPE_EDIT_CORE_COLUMNS =
-  "id, translation_group_id, language, title, subtitle, description, status, primary_cuisine, cuisines, tags, servings, total_minutes, difficulty, nutrition, substitutions, ingredients, steps, created_by, updated_by, created_at, updated_at, published_at";
+  "id, translation_group_id, language, title, subtitle, status, primary_cuisine, cuisines, tags, servings, total_minutes, difficulty, ingredients, steps, created_by, updated_by, created_at, updated_at, published_at";
 
 export default async function RecipeEditPage({ params }: RecipeEditProps) {
   const [{ supabase, profile }, { id }, lang] = await Promise.all([getCurrentProfileOrRedirect(), params, getServerUILang()]);
@@ -50,12 +71,30 @@ export default async function RecipeEditPage({ params }: RecipeEditProps) {
     notFound();
   }
 
-  // Optional migration column fetch: fallback to [] if column doesn't exist in this environment.
-  const { data: imageData, error: imageError } = await supabase
-    .from("recipes")
-    .select("image_urls")
-    .eq("id", id)
-    .maybeSingle<{ image_urls: string[] | null }>();
+  // Optional migration fields: fetch separately so missing columns do not break edit page.
+  const [{ data: imageData, error: imageError }, { data: descriptionData, error: descriptionError }, { data: nutritionData, error: nutritionError }, { data: substitutionsData, error: substitutionsError }] = await Promise.all([
+    supabase
+      .from("recipes")
+      .select("image_urls")
+      .eq("id", id)
+      .maybeSingle<{ image_urls: string[] | null }>(),
+    supabase
+      .from("recipes")
+      .select("description")
+      .eq("id", id)
+      .maybeSingle<{ description: string | null }>(),
+    supabase
+      .from("recipes")
+      .select("nutrition")
+      .eq("id", id)
+      .maybeSingle<{ nutrition: RecipeRecord["nutrition"] | null }>(),
+    supabase
+      .from("recipes")
+      .select("substitutions")
+      .eq("id", id)
+      .maybeSingle<{ substitutions: RecipeRecord["substitutions"] | null }>(),
+  ]);
+
   if (imageError) {
     console.warn(`[${debugId}] Optional image_urls unavailable; continuing without images.`, {
       message: imageError.message,
@@ -64,18 +103,73 @@ export default async function RecipeEditPage({ params }: RecipeEditProps) {
       hint: imageError.hint,
     });
   }
+  if (descriptionError) {
+    console.warn(`[${debugId}] Optional description unavailable; using subtitle as fallback.`, {
+      message: descriptionError.message,
+      code: descriptionError.code,
+      details: descriptionError.details,
+      hint: descriptionError.hint,
+    });
+  }
+  if (nutritionError) {
+    console.warn(`[${debugId}] Optional nutrition unavailable; continuing with empty nutrition.`, {
+      message: nutritionError.message,
+      code: nutritionError.code,
+      details: nutritionError.details,
+      hint: nutritionError.hint,
+    });
+  }
+  if (substitutionsError) {
+    console.warn(`[${debugId}] Optional substitutions unavailable; continuing with empty substitutions.`, {
+      message: substitutionsError.message,
+      code: substitutionsError.code,
+      details: substitutionsError.details,
+      hint: substitutionsError.hint,
+    });
+  }
 
   const recipe: RecipeRecord = {
     ...recipeCore,
+    description: descriptionData?.description ?? recipeCore.subtitle ?? null,
+    nutrition: nutritionData?.nutrition || {},
+    substitutions: substitutionsData?.substitutions || [],
     image_urls: imageData?.image_urls || [],
   };
 
-  const { data: translations } = await supabase
+  const { data: translationsCoreList } = await supabase
     .from("recipes")
-    .select("id, language, status, title, image_urls")
+    .select("id, language, status, title")
     .eq("translation_group_id", recipe.translation_group_id)
     .order("language", { ascending: true })
-    .returns<TranslationSummaryItem[]>();
+    .returns<Array<{ id: string; language: string; status: RecipeRecord["status"]; title: string }>>();
+
+  const translationIds = (translationsCoreList || []).map((item) => item.id);
+  const translationImageMap = new Map<string, string[]>();
+  if (translationIds.length > 0) {
+    const { data: translationImages, error: translationImagesError } = await supabase
+      .from("recipes")
+      .select("id, image_urls")
+      .in("id", translationIds)
+      .returns<Array<{ id: string; image_urls: string[] | null }>>();
+
+    if (translationImagesError) {
+      console.warn(`[${debugId}] Optional translation image_urls unavailable; continuing without translation thumbnails.`, {
+        message: translationImagesError.message,
+        code: translationImagesError.code,
+        details: translationImagesError.details,
+        hint: translationImagesError.hint,
+      });
+    } else {
+      for (const row of translationImages || []) {
+        translationImageMap.set(row.id, row.image_urls || []);
+      }
+    }
+  }
+
+  const translations: TranslationSummaryItem[] = (translationsCoreList || []).map((item) => ({
+    ...item,
+    image_urls: translationImageMap.get(item.id) || [],
+  }));
 
   const normalizedSettings = normalizeAppSettings(appSettings);
 
