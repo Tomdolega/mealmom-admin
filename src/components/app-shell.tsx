@@ -27,7 +27,7 @@ export function AppShell({ role, displayName, lang, labels, children }: AppShell
       <header className="sticky top-0 z-20 border-b border-white/60 bg-white/55 backdrop-blur-2xl">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-6 px-4 sm:px-6 lg:px-8">
           <div className="min-w-0">
-            <p className="text-sm font-semibold tracking-tight text-slate-900">MealMom Admin</p>
+            <p className="text-sm font-semibold tracking-tight text-slate-900">Culinae Admin</p>
             <p className="truncate text-xs text-slate-500">
               {displayName || labels.userDefault} · {role}
             </p>

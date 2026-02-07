@@ -8,7 +8,7 @@ const geist = Geist({
 });
 
 export const metadata: Metadata = {
-  title: "MealMom Admin",
+  title: "Culinae Admin",
   description: "Recipe administration panel",
 };
 

@@ -41,7 +41,7 @@ export default async function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center px-4">
       <Card className="w-full max-w-md bg-white/70 backdrop-blur-xl">
-        <h1 className="mb-1 text-2xl font-semibold">MealMom Admin</h1>
+        <h1 className="mb-1 text-2xl font-semibold">Culinae Admin</h1>
         <p className="mb-5 text-sm text-slate-600">
           {tr(lang, "Sign in with your email and password.", "Zaloguj się e-mailem i hasłem.")}
         </p>
