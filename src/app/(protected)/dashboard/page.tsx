@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { getCurrentProfileOrRedirect } from "@/lib/auth";
+import { getRecipeStatusLabel } from "@/lib/recipe-status";
 import { normalizeAppSettings } from "@/lib/settings";
 import { getServerUILang, tr } from "@/lib/ui-language.server";
 import type { AppSettingsRecord, RecipeRecord, RecipeStatus } from "@/lib/types";
@@ -183,7 +184,7 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
               return (
                 <Link key={status} href={buildHref(activeParams, { status: active ? null : status })}>
                   <Button type="button" variant={active ? "primary" : "ghost"} size="sm">
-                    {status}
+                    {getRecipeStatusLabel(status, lang)}
                   </Button>
                 </Link>
               );
@@ -260,7 +261,7 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
                     <p className="text-xs text-slate-500">{recipe.subtitle || recipe.language}</p>
                   </td>
                   <td className="px-4 py-3">
-                    <StatusBadge status={recipe.status} />
+                    <StatusBadge status={recipe.status} lang={lang} />
                   </td>
                   <td className="px-4 py-3 text-slate-700">{recipe.primary_cuisine || "-"}</td>
                   <td className="px-4 py-3 text-xs text-slate-600">

@@ -72,7 +72,7 @@ export default async function RecipeEditPage({ params }: RecipeEditProps) {
               className="inline-flex items-center gap-2 rounded-md bg-slate-50 px-2.5 py-1.5 text-sm text-slate-700 hover:bg-slate-100"
             >
               <span>{translation.language}</span>
-              <StatusBadge status={translation.status} />
+              <StatusBadge status={translation.status} lang={lang} />
             </Link>
           ))}
         </div>

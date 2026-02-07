@@ -103,7 +103,7 @@ export function TranslationsPanel({
                 <td className="px-4 py-3">{item.language}</td>
                 <td className="px-4 py-3">{item.title}</td>
                 <td className="px-4 py-3">
-                  <StatusBadge status={item.status} />
+                  <StatusBadge status={item.status} lang={lang} />
                 </td>
                 <td className="px-4 py-3 text-slate-600">{new Date(item.updated_at).toLocaleString()}</td>
                 <td className="px-4 py-3">

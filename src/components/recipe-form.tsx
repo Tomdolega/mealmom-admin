@@ -10,6 +10,7 @@ import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { getRecipeStatusLabel } from "@/lib/recipe-status";
 import { getClientUILang, tr } from "@/lib/ui-language.client";
 
 const allStatuses: RecipeStatus[] = ["draft", "in_review", "published", "archived"];
@@ -360,7 +361,7 @@ export function RecipeForm({
             <Select value={status} onChange={(e) => setStatus(e.target.value as RecipeStatus)} disabled={role === "reviewer" ? !reviewerStatusEditable : false}>
               {allowedStatuses.map((item) => (
                 <option key={item} value={item}>
-                  {item}
+                  {getRecipeStatusLabel(item, lang)}
                 </option>
               ))}
             </Select>
@@ -397,8 +398,13 @@ export function RecipeForm({
                 <span key={item} className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-700">
                   {item}
                   {canEditContent ? (
-                    <button type="button" className="text-slate-500 hover:text-slate-900" onClick={() => setSelectedCuisines((prev) => prev.filter((value) => value !== item))}>
-                      x
+                    <button
+                      type="button"
+                      className="text-slate-500 hover:text-slate-900"
+                      onClick={() => setSelectedCuisines((prev) => prev.filter((value) => value !== item))}
+                      aria-label={tt("Remove cuisine", "Usuń kuchnię")}
+                    >
+                      ×
                     </button>
                   ) : null}
                 </span>
@@ -406,7 +412,7 @@ export function RecipeForm({
             </div>
           </FormField>
           <FormField label={tt("Tags (comma-separated)", "Tagi (po przecinku)")}>
-            <Input value={tagsText} onChange={(e) => setTagsText(e.target.value)} placeholder="quick, family" disabled={!canEditContent} />
+            <Input value={tagsText} onChange={(e) => setTagsText(e.target.value)} placeholder={tt("quick, family", "szybkie, rodzinne")} disabled={!canEditContent} />
           </FormField>
           <FormField label={tt("Servings", "Porcje")}>
             <Input type="number" min={1} value={servings} onChange={(e) => setServings(e.target.value)} disabled={!canEditContent} />

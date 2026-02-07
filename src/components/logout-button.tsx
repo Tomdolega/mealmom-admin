@@ -5,10 +5,10 @@ import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 
 type LogoutButtonProps = {
-  label?: string;
+  label: string;
 };
 
-export function LogoutButton({ label = "Sign out" }: LogoutButtonProps) {
+export function LogoutButton({ label }: LogoutButtonProps) {
   const router = useRouter();
 
   return (
