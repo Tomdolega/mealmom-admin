@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/badge";
 import { getCurrentProfileOrRedirect } from "@/lib/auth";
 import { normalizeAppSettings } from "@/lib/settings";
+import { getServerUILang, tr } from "@/lib/ui-language.server";
 import type { AppSettingsRecord, RecipeRecord } from "@/lib/types";
 
 type RecipeEditProps = {
@@ -15,8 +16,7 @@ type RecipeEditProps = {
 type TranslationSummaryItem = Pick<RecipeRecord, "id" | "language" | "status">;
 
 export default async function RecipeEditPage({ params }: RecipeEditProps) {
-  const { supabase, profile } = await getCurrentProfileOrRedirect();
-  const { id } = await params;
+  const [{ supabase, profile }, { id }, lang] = await Promise.all([getCurrentProfileOrRedirect(), params, getServerUILang()]);
 
   const [{ data: recipe, error }, { data: appSettings }] = await Promise.all([
     supabase
@@ -48,22 +48,22 @@ export default async function RecipeEditPage({ params }: RecipeEditProps) {
 
   return (
     <div className="space-y-5">
-      <section className="rounded-xl border border-slate-200 bg-white p-5">
+      <section className="rounded-xl border border-slate-200 bg-white/70 p-5 backdrop-blur-xl">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Edit recipe</h1>
-            <p className="mt-1 text-sm text-slate-600">Update content, review status, and translation coverage.</p>
+            <h1 className="text-2xl font-semibold tracking-tight text-slate-900">{tr(lang, "Edit recipe", "Edytuj przepis")}</h1>
+            <p className="mt-1 text-sm text-slate-600">{tr(lang, "Update content, review status, and translation coverage.", "Aktualizuj treść, status i kompletność tłumaczeń.")}</p>
           </div>
           <Link href={`/recipes/${recipe.id}/translations`}>
             <Button type="button" variant="secondary">
-              Manage translations
+              {tr(lang, "Manage translations", "Zarządzaj tłumaczeniami")}
             </Button>
           </Link>
         </div>
       </section>
 
       <Card className="space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Translations summary</h2>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">{tr(lang, "Translations summary", "Podsumowanie tłumaczeń")}</h2>
         <div className="flex flex-wrap gap-2">
           {(translations || []).map((translation) => (
             <Link

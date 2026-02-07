@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Select } from "@/components/ui/select";
 import { OrderedCuisinesEditor } from "@/components/ordered-cuisines-editor";
+import { getClientUILang, tr } from "@/lib/ui-language.client";
 
 type UserSettingsFormProps = {
   userId: string;
@@ -20,6 +21,7 @@ type UserSettingsFormProps = {
 };
 
 export function UserSettingsForm({ userId, enabledLanguages, enabledCuisines, initial }: UserSettingsFormProps) {
+  const lang = getClientUILang();
   const [preferredLanguage, setPreferredLanguage] = useState(initial.preferred_language || enabledLanguages[0] || "en");
   const [preferredCuisines, setPreferredCuisines] = useState<string[]>(initial.preferred_cuisines || []);
   const [uiDensity, setUiDensity] = useState<UiDensity>(initial.ui_density || "comfortable");
@@ -41,22 +43,22 @@ export function UserSettingsForm({ userId, enabledLanguages, enabledCuisines, in
     setSaving(false);
 
     if (error) {
-      setMessage("Could not save preferences. Please try again.");
+      setMessage(tr(lang, "Could not save preferences. Please try again.", "Nie udało się zapisać preferencji. Spróbuj ponownie."));
       return;
     }
 
-    setMessage("Preferences saved.");
+    setMessage(tr(lang, "Preferences saved.", "Preferencje zapisane."));
   }
 
   return (
-    <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-5">
+    <section className="space-y-4 rounded-xl border border-slate-200 bg-white/70 p-5 backdrop-blur-xl">
       <div>
-        <h2 className="text-lg font-semibold text-slate-900">Personal preferences</h2>
-        <p className="mt-1 text-sm text-slate-600">Customize your default language, cuisine order, and editor density.</p>
+        <h2 className="text-lg font-semibold text-slate-900">{tr(lang, "Personal preferences", "Preferencje osobiste")}</h2>
+        <p className="mt-1 text-sm text-slate-600">{tr(lang, "Customize your default language, cuisine order, and editor density.", "Dostosuj domyślny język, kolejność kuchni i gęstość interfejsu.")}</p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <FormField label="Preferred language">
+        <FormField label={tr(lang, "Preferred language", "Preferowany język")}>
           <Select value={preferredLanguage} onChange={(e) => setPreferredLanguage(e.target.value)}>
             {enabledLanguages.map((language) => (
               <option key={language} value={language}>
@@ -66,21 +68,21 @@ export function UserSettingsForm({ userId, enabledLanguages, enabledCuisines, in
           </Select>
         </FormField>
 
-        <FormField label="UI density">
+        <FormField label={tr(lang, "UI density", "Gęstość interfejsu")}>
           <Select value={uiDensity} onChange={(e) => setUiDensity(e.target.value as UiDensity)}>
-            <option value="comfortable">comfortable</option>
-            <option value="compact">compact</option>
+            <option value="comfortable">{tr(lang, "comfortable", "komfortowa")}</option>
+            <option value="compact">{tr(lang, "compact", "zwarta")}</option>
           </Select>
         </FormField>
       </div>
 
-      <FormField label="Preferred cuisines (ordered)">
+      <FormField label={tr(lang, "Preferred cuisines (ordered)", "Preferowane kuchnie (kolejność)")}>
         <OrderedCuisinesEditor available={enabledCuisines} value={preferredCuisines} onChange={setPreferredCuisines} />
       </FormField>
 
       <div className="flex items-center gap-3">
         <Button type="button" onClick={saveSettings} disabled={saving}>
-          {saving ? "Saving..." : "Save preferences"}
+          {saving ? tr(lang, "Saving...", "Zapisywanie...") : tr(lang, "Save preferences", "Zapisz preferencje")}
         </Button>
         {message ? <p className="text-sm text-slate-600">{message}</p> : null}
       </div>

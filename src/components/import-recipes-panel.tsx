@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { RecipeStatus } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { getClientUILang, tr } from "@/lib/ui-language";
 
 const allowedStatuses: RecipeStatus[] = ["draft", "in_review", "published", "archived"];
 const UPSERT_CHUNK_SIZE = 100;
@@ -89,6 +90,9 @@ type ImportRecipesPanelProps = {
 };
 
 export function ImportRecipesPanel({ enabledLanguages, enabledCuisines }: ImportRecipesPanelProps) {
+  const lang = getClientUILang();
+  const tt = (en: string, pl: string) => tr(lang, en, pl);
+
   const [fileName, setFileName] = useState<string>("");
   const [rows, setRows] = useState<ParsedRow[]>([]);
   const [results, setResults] = useState<ValidationResult[]>([]);
@@ -107,16 +111,16 @@ export function ImportRecipesPanel({ enabledLanguages, enabledCuisines }: Import
       const statusValue = (row.status?.trim() || "draft") as RecipeStatus;
       const primaryCuisine = row.primary_cuisine?.trim() || "";
 
-      if (!title) errors.push("Title is required.");
-      if (!language) errors.push("Language is required.");
+      if (!title) errors.push(tt("Title is required.", "Tytuł jest wymagany."));
+      if (!language) errors.push(tt("Language is required.", "Język jest wymagany."));
       if (language && !enabledLanguages.includes(language)) {
-        errors.push(`Language must be one of: ${enabledLanguages.join(", ")}.`);
+        errors.push(tt(`Language must be one of: ${enabledLanguages.join(", ")}.`, `Język musi być jednym z: ${enabledLanguages.join(", ")}.`));
       }
       if (!allowedStatuses.includes(statusValue)) {
-        errors.push(`Status must be one of: ${allowedStatuses.join(", ")}.`);
+        errors.push(tt(`Status must be one of: ${allowedStatuses.join(", ")}.`, `Status musi być jednym z: ${allowedStatuses.join(", ")}.`));
       }
       if (primaryCuisine && !enabledCuisines.includes(primaryCuisine)) {
-        errors.push("Primary cuisine is not in enabled cuisines.");
+        errors.push(tt("Primary cuisine is not in enabled cuisines.", "Kuchnia główna nie jest na liście aktywnych kuchni."));
       }
 
       let ingredients: unknown[] = [];
@@ -125,13 +129,13 @@ export function ImportRecipesPanel({ enabledLanguages, enabledCuisines }: Import
       try {
         ingredients = parseJsonArray(row.ingredients || "[]", "ingredients");
       } catch {
-        errors.push("Ingredients must be a valid JSON array.");
+        errors.push(tt("Ingredients must be a valid JSON array.", "Składniki muszą być poprawną tablicą JSON."));
       }
 
       try {
         steps = parseJsonArray(row.steps || "[]", "steps");
       } catch {
-        errors.push("Steps must be a valid JSON array.");
+        errors.push(tt("Steps must be a valid JSON array.", "Kroki muszą być poprawną tablicą JSON."));
       }
 
       const cuisines = parseList(row.cuisines || "");
@@ -139,7 +143,7 @@ export function ImportRecipesPanel({ enabledLanguages, enabledCuisines }: Import
 
       const invalidCuisine = cuisines.find((cuisine) => !enabledCuisines.includes(cuisine));
       if (invalidCuisine) {
-        errors.push(`Cuisine '${invalidCuisine}' is not enabled.`);
+        errors.push(tt(`Cuisine '${invalidCuisine}' is not enabled.`, `Kuchnia '${invalidCuisine}' nie jest aktywna.`));
       }
 
       const payload: ImportPayload = {
@@ -159,9 +163,9 @@ export function ImportRecipesPanel({ enabledLanguages, enabledCuisines }: Import
         translation_group_id: row.translation_group_id?.trim() || undefined,
       };
 
-      if (payload.servings !== null && Number.isNaN(payload.servings)) errors.push("Servings must be a number.");
+      if (payload.servings !== null && Number.isNaN(payload.servings)) errors.push(tt("Servings must be a number.", "Porcje muszą być liczbą."));
       if (payload.total_minutes !== null && Number.isNaN(payload.total_minutes)) {
-        errors.push("Total minutes must be a number.");
+        errors.push(tt("Total minutes must be a number.", "Czas całkowity musi być liczbą."));
       }
 
       return { rowIndex, raw: row, errors, payload: errors.length ? undefined : payload };
@@ -192,7 +196,7 @@ export function ImportRecipesPanel({ enabledLanguages, enabledCuisines }: Import
       setRows(normalized);
       validateRows(normalized);
     } catch {
-      setReadError("Could not read that file. Please use a CSV or XLSX file with a header row.");
+      setReadError(tt("Could not read that file. Please use a CSV or XLSX file with a header row.", "Nie udało się odczytać pliku. Użyj pliku CSV lub XLSX z nagłówkiem."));
       setRows([]);
       setResults([]);
       setSummary(null);
@@ -232,7 +236,7 @@ export function ImportRecipesPanel({ enabledLanguages, enabledCuisines }: Import
       for (const row of chunk) {
         const { error: rowError } = await supabase.from("recipes").upsert(row.payload!, { onConflict: "id" });
         if (rowError) {
-          failed.push({ ...row, errors: ["Could not import this row. Check values and role permissions."] });
+          failed.push({ ...row, errors: [tt("Could not import this row. Check values and role permissions.", "Nie udało się zaimportować tego wiersza. Sprawdź wartości i uprawnienia roli.")] });
         } else {
           created += 1;
         }
@@ -255,16 +259,16 @@ export function ImportRecipesPanel({ enabledLanguages, enabledCuisines }: Import
 
   return (
     <div className="space-y-4">
-      <section className="rounded-xl border border-slate-200 bg-white p-5">
-        <h2 className="text-lg font-semibold text-slate-900">Import workflow</h2>
-        <p className="mt-1 text-sm text-slate-600">Upload a file, validate it, preview results, then confirm import.</p>
+      <section className="rounded-xl border border-slate-200 bg-white/70 p-5 backdrop-blur-xl">
+        <h2 className="text-lg font-semibold text-slate-900">{tt("Import workflow", "Workflow importu")}</h2>
+        <p className="mt-1 text-sm text-slate-600">{tt("Upload a file, validate it, preview results, then confirm import.", "Wgraj plik, zwaliduj dane, sprawdź podgląd i potwierdź import.")}</p>
 
         <ol className="mt-4 grid gap-3 text-sm md:grid-cols-4">
           {[
-            ["Step 1", "Upload file"],
-            ["Step 2", "Validate rows"],
-            ["Step 3", "Review preview"],
-            ["Step 4", "Confirm import"],
+            [tt("Step 1", "Krok 1"), tt("Upload file", "Wgraj plik")],
+            [tt("Step 2", "Krok 2"), tt("Validate rows", "Zweryfikuj wiersze")],
+            [tt("Step 3", "Krok 3"), tt("Review preview", "Sprawdź podgląd")],
+            [tt("Step 4", "Krok 4"), tt("Confirm import", "Potwierdź import")],
           ].map(([step, label]) => (
             <li key={step} className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
               <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{step}</p>
@@ -274,8 +278,8 @@ export function ImportRecipesPanel({ enabledLanguages, enabledCuisines }: Import
         </ol>
       </section>
 
-      <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-5">
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Step 1: Upload</h3>
+      <section className="space-y-3 rounded-xl border border-slate-200 bg-white/70 p-5 backdrop-blur-xl">
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">{tt("Step 1: Upload", "Krok 1: Wgrywanie")}</h3>
         <Input
           type="file"
           accept=".csv,.xlsx,.xls"
@@ -284,7 +288,7 @@ export function ImportRecipesPanel({ enabledLanguages, enabledCuisines }: Import
             if (file) void readFile(file);
           }}
         />
-        {fileName ? <p className="text-sm text-slate-600">Loaded file: {fileName}</p> : null}
+        {fileName ? <p className="text-sm text-slate-600">{tt("Loaded file", "Załadowany plik")}: {fileName}</p> : null}
         {readError ? <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{readError}</p> : null}
 
         <div className="flex flex-wrap items-center gap-2">
@@ -295,7 +299,7 @@ export function ImportRecipesPanel({ enabledLanguages, enabledCuisines }: Import
               onChange={(event) => setDryRun(event.target.checked)}
               className="h-4 w-4 rounded border-slate-300"
             />
-            Dry run only (validation without writing to database)
+            {tt("Dry run only (validation without writing to database)", "Tylko dry-run (walidacja bez zapisu do bazy)")}
           </label>
 
           <Button
@@ -309,36 +313,36 @@ export function ImportRecipesPanel({ enabledLanguages, enabledCuisines }: Import
               downloadCsv("recipes-import-template.csv", template);
             }}
           >
-            Download template CSV
+            {tt("Download template CSV", "Pobierz szablon CSV")}
           </Button>
         </div>
       </section>
 
-      <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-5">
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Step 2: Validate</h3>
+      <section className="space-y-3 rounded-xl border border-slate-200 bg-white/70 p-5 backdrop-blur-xl">
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">{tt("Step 2: Validate", "Krok 2: Walidacja")}</h3>
         <p className="text-sm text-slate-600">
-          Required fields: <code>title</code>, <code>language</code>, <code>status</code>. Use JSON arrays for
-          <code> ingredients</code> and <code>steps</code> cells.
+          {tt("Required fields", "Pola wymagane")}: <code>title</code>, <code>language</code>, <code>status</code>. {tt("Use JSON arrays for", "Użyj tablic JSON dla")}
+          <code> ingredients</code> {tt("and", "oraz")} <code>steps</code> {tt("cells", "w komórkach")}. 
         </p>
         <p className="text-sm text-slate-700">
-          Valid rows: {validCount} · Rows with issues: {errorCount}
+          {tt("Valid rows", "Poprawne wiersze")}: {validCount} · {tt("Rows with issues", "Wiersze z błędami")}: {errorCount}
         </p>
       </section>
 
-      <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-5">
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Step 3: Preview</h3>
-        <p className="text-sm text-slate-600">First 5 valid rows shown in management view before import.</p>
+      <section className="space-y-3 rounded-xl border border-slate-200 bg-white/70 p-5 backdrop-blur-xl">
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">{tt("Step 3: Preview", "Krok 3: Podgląd")}</h3>
+        <p className="text-sm text-slate-600">{tt("First 5 valid rows shown in management view before import.", "Pierwsze 5 poprawnych wierszy przed importem.")}</p>
         <div className="overflow-x-auto rounded-md border border-slate-200">
           <table className="min-w-full divide-y divide-slate-200 text-sm">
             <thead className="bg-slate-50">
               <tr>
-                <th className="px-3 py-2 text-left font-medium">Row</th>
-                <th className="px-3 py-2 text-left font-medium">Title</th>
-                <th className="px-3 py-2 text-left font-medium">Language</th>
-                <th className="px-3 py-2 text-left font-medium">Status</th>
-                <th className="px-3 py-2 text-left font-medium">Cuisines</th>
-                <th className="px-3 py-2 text-left font-medium">Ingredients</th>
-                <th className="px-3 py-2 text-left font-medium">Steps</th>
+                <th className="px-3 py-2 text-left font-medium">{tt("Row", "Wiersz")}</th>
+                <th className="px-3 py-2 text-left font-medium">{tt("Title", "Tytuł")}</th>
+                <th className="px-3 py-2 text-left font-medium">{tt("Language", "Język")}</th>
+                <th className="px-3 py-2 text-left font-medium">{tt("Status", "Status")}</th>
+                <th className="px-3 py-2 text-left font-medium">{tt("Cuisines", "Kuchnie")}</th>
+                <th className="px-3 py-2 text-left font-medium">{tt("Ingredients", "Składniki")}</th>
+                <th className="px-3 py-2 text-left font-medium">{tt("Steps", "Kroki")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -356,7 +360,7 @@ export function ImportRecipesPanel({ enabledLanguages, enabledCuisines }: Import
               {validDiffPreview.length === 0 ? (
                 <tr>
                   <td className="px-3 py-6 text-sm text-slate-500" colSpan={7}>
-                    No valid rows to preview yet.
+                    {tt("No valid rows to preview yet.", "Brak poprawnych wierszy do podglądu.")}
                   </td>
                 </tr>
               ) : null}
@@ -365,35 +369,35 @@ export function ImportRecipesPanel({ enabledLanguages, enabledCuisines }: Import
         </div>
       </section>
 
-      <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-5">
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Step 4: Confirm</h3>
+      <section className="space-y-3 rounded-xl border border-slate-200 bg-white/70 p-5 backdrop-blur-xl">
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">{tt("Step 4: Confirm", "Krok 4: Potwierdzenie")}</h3>
         <div className="flex flex-wrap items-center gap-2">
           <Button type="button" onClick={importRows} disabled={isImporting || (validCount === 0 && errorCount === 0)}>
-            {isImporting ? "Processing..." : dryRun ? `Run dry validation (${validCount} valid)` : `Import valid rows (${validCount})`}
+            {isImporting ? tt("Processing...", "Przetwarzanie...") : dryRun ? `${tt("Run dry validation", "Uruchom dry-run")}` + ` (${validCount} ${tt("valid", "poprawnych")})` : `${tt("Import valid rows", "Importuj poprawne wiersze")}` + ` (${validCount})`}
           </Button>
-          <span className="text-sm text-slate-500">Errors will be exported as CSV automatically.</span>
+          <span className="text-sm text-slate-500">{tt("Errors will be exported as CSV automatically.", "Błędy zostaną automatycznie wyeksportowane do CSV.")}</span>
         </div>
 
         {summary ? (
           <p className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-700">
             {summary.dryRun
-              ? `Dry run complete. ${summary.validated} rows are valid and ${summary.failed} rows need corrections.`
-              : `Import complete. ${summary.created} rows were created/updated and ${summary.failed} rows failed.`}
+              ? tt(`Dry run complete. ${summary.validated} rows are valid and ${summary.failed} rows need corrections.`, `Dry-run zakończony. ${summary.validated} wierszy jest poprawnych, ${summary.failed} wymaga poprawek.`)
+              : tt(`Import complete. ${summary.created} rows were created/updated and ${summary.failed} rows failed.`, `Import zakończony. ${summary.created} wierszy utworzono/zaktualizowano, ${summary.failed} zakończyło się błędem.`)}
           </p>
         ) : null}
       </section>
 
-      <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-5">
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Row issues (first 20)</h3>
+      <section className="space-y-3 rounded-xl border border-slate-200 bg-white/70 p-5 backdrop-blur-xl">
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">{tt("Row issues (first 20)", "Błędy wierszy (pierwsze 20)")}</h3>
         <div className="overflow-x-auto rounded-md border border-slate-200">
           <table className="min-w-full divide-y divide-slate-200 text-sm">
             <thead className="bg-slate-50">
               <tr>
                 <th className="px-3 py-2 text-left font-medium">#</th>
-                <th className="px-3 py-2 text-left font-medium">Title</th>
-                <th className="px-3 py-2 text-left font-medium">Language</th>
-                <th className="px-3 py-2 text-left font-medium">Status</th>
-                <th className="px-3 py-2 text-left font-medium">Issues</th>
+                <th className="px-3 py-2 text-left font-medium">{tt("Title", "Tytuł")}</th>
+                <th className="px-3 py-2 text-left font-medium">{tt("Language", "Język")}</th>
+                <th className="px-3 py-2 text-left font-medium">{tt("Status", "Status")}</th>
+                <th className="px-3 py-2 text-left font-medium">{tt("Issues", "Problemy")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -405,14 +409,14 @@ export function ImportRecipesPanel({ enabledLanguages, enabledCuisines }: Import
                     <td className="px-3 py-2">{row.title || "-"}</td>
                     <td className="px-3 py-2">{row.language || "-"}</td>
                     <td className="px-3 py-2">{row.status || "draft"}</td>
-                    <td className="px-3 py-2 text-red-700">{result?.errors.join("; ") || "No issues"}</td>
+                    <td className="px-3 py-2 text-red-700">{result?.errors.join("; ") || tt("No issues", "Brak problemów")}</td>
                   </tr>
                 );
               })}
               {previewRows.length === 0 ? (
                 <tr>
                   <td className="px-3 py-6 text-sm text-slate-500" colSpan={5}>
-                    Upload a CSV/XLSX file to start validation.
+                    {tt("Upload a CSV/XLSX file to start validation.", "Wgraj plik CSV/XLSX, aby rozpocząć walidację.")}
                   </td>
                 </tr>
               ) : null}

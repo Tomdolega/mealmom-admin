@@ -1,5 +1,5 @@
 import type { ProfileRole } from "@/lib/types";
-import type { UILang } from "@/lib/ui-language";
+import type { UILang } from "@/lib/ui-language.server";
 import { LogoutButton } from "@/components/logout-button";
 import { NavLink } from "@/components/nav-link";
 import { LanguageSwitcher } from "@/components/language-switcher";

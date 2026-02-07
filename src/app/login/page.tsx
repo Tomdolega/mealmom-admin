@@ -3,7 +3,7 @@ import { LoginForm } from "@/components/login-form";
 import { createClient } from "@/lib/supabase/server";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
 import { Card } from "@/components/ui/card";
-import { getServerUILang, tr } from "@/lib/ui-language";
+import { getServerUILang, tr } from "@/lib/ui-language.server";
 
 export const dynamic = "force-dynamic";
 

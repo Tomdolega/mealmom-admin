@@ -2,6 +2,7 @@ import { RecipeForm } from "@/components/recipe-form";
 import { notFound } from "next/navigation";
 import { getCurrentProfileOrRedirect } from "@/lib/auth";
 import { normalizeAppSettings } from "@/lib/settings";
+import { getServerUILang, tr } from "@/lib/ui-language.server";
 import type { AppSettingsRecord } from "@/lib/types";
 
 type NewRecipeProps = {
@@ -9,8 +10,7 @@ type NewRecipeProps = {
 };
 
 export default async function NewRecipePage({ searchParams }: NewRecipeProps) {
-  const { profile, supabase } = await getCurrentProfileOrRedirect();
-  const params = await searchParams;
+  const [{ profile, supabase }, params, lang] = await Promise.all([getCurrentProfileOrRedirect(), searchParams, getServerUILang()]);
 
   if (profile.role === "reviewer") {
     notFound();
@@ -26,9 +26,9 @@ export default async function NewRecipePage({ searchParams }: NewRecipeProps) {
 
   return (
     <div className="space-y-5">
-      <section className="rounded-xl border border-slate-200 bg-white p-5">
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Create recipe</h1>
-        <p className="mt-1 text-sm text-slate-600">Start with core details, then add ingredients and steps.</p>
+      <section className="rounded-xl border border-slate-200 bg-white/70 p-5 backdrop-blur-xl">
+        <h1 className="text-2xl font-semibold tracking-tight text-slate-900">{tr(lang, "Create recipe", "Nowy przepis")}</h1>
+        <p className="mt-1 text-sm text-slate-600">{tr(lang, "Start with core details, then add ingredients and steps.", "Zacznij od szczegółów, a potem dodaj składniki i kroki.")}</p>
       </section>
 
       <RecipeForm

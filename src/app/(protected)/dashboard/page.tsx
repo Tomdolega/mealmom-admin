@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { getCurrentProfileOrRedirect } from "@/lib/auth";
 import { normalizeAppSettings } from "@/lib/settings";
+import { getServerUILang, tr } from "@/lib/ui-language.server";
 import type { AppSettingsRecord, RecipeRecord, RecipeStatus } from "@/lib/types";
 
 type DashboardProps = {
@@ -38,8 +39,11 @@ async function getStatusCount(supabase: Awaited<ReturnType<typeof getCurrentProf
 }
 
 export default async function DashboardPage({ searchParams }: DashboardProps) {
-  const { supabase, session, profile } = await getCurrentProfileOrRedirect();
-  const params = await searchParams;
+  const [{ supabase, session, profile }, params, lang] = await Promise.all([
+    getCurrentProfileOrRedirect(),
+    searchParams,
+    getServerUILang(),
+  ]);
 
   const [appSettingsRes, draftCount, reviewCount, publishedCount, recentRes] = await Promise.all([
     supabase
@@ -102,39 +106,43 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
 
   return (
     <div className="space-y-6">
-      <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-5">
+      <section className="space-y-4 rounded-xl border border-slate-200 bg-white/70 p-5 backdrop-blur-xl">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Control overview</h1>
-            <p className="mt-1 text-sm text-slate-600">Monitor recipe flow and act quickly on pending work.</p>
+            <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
+              {tr(lang, "Control overview", "Przegląd panelu")}
+            </h1>
+            <p className="mt-1 text-sm text-slate-600">
+              {tr(lang, "Monitor recipe flow and act quickly on pending work.", "Monitoruj przepływ przepisów i szybko reaguj na zadania.")}
+            </p>
           </div>
           <ExportPublishedPackButton language={params.language} cuisine={params.cuisine} />
         </div>
 
         <div className="grid gap-3 md:grid-cols-4">
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Drafts</p>
+          <div className="rounded-lg border border-slate-200/70 bg-white/60 p-3 backdrop-blur">
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{tr(lang, "Drafts", "Szkice")}</p>
             <p className="mt-1 text-2xl font-semibold text-slate-900">{draftCount}</p>
           </div>
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">In review</p>
+          <div className="rounded-lg border border-slate-200/70 bg-white/60 p-3 backdrop-blur">
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{tr(lang, "In review", "W recenzji")}</p>
             <p className="mt-1 text-2xl font-semibold text-slate-900">{reviewCount}</p>
           </div>
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Published</p>
+          <div className="rounded-lg border border-slate-200/70 bg-white/60 p-3 backdrop-blur">
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{tr(lang, "Published", "Opublikowane")}</p>
             <p className="mt-1 text-2xl font-semibold text-slate-900">{publishedCount}</p>
           </div>
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">System</p>
-            <p className="mt-1 text-sm font-medium text-slate-700">Connection ready</p>
-            <p className="text-xs text-slate-500">Export + filters available</p>
+          <div className="rounded-lg border border-slate-200/70 bg-white/60 p-3 backdrop-blur">
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{tr(lang, "System", "System")}</p>
+            <p className="mt-1 text-sm font-medium text-slate-700">{tr(lang, "Connection ready", "Połączenie gotowe")}</p>
+            <p className="text-xs text-slate-500">{tr(lang, "Export + filters available", "Eksport i filtry dostępne")}</p>
           </div>
         </div>
 
         <div className="space-y-2 border-t border-slate-200 pt-4">
-          <h2 className="text-sm font-semibold text-slate-800">Last updated recipes</h2>
+          <h2 className="text-sm font-semibold text-slate-800">{tr(lang, "Last updated recipes", "Ostatnio aktualizowane przepisy")}</h2>
           {recentRecipes.length === 0 ? (
-            <p className="text-sm text-slate-500">No recipes yet. Create your first recipe to start workflow tracking.</p>
+            <p className="text-sm text-slate-500">{tr(lang, "No recipes yet. Create your first recipe to start workflow tracking.", "Brak przepisów. Dodaj pierwszy przepis, aby rozpocząć pracę.")}</p>
           ) : (
             <div className="space-y-1.5">
               {recentRecipes.map((item) => (
@@ -154,22 +162,22 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
         </div>
       </section>
 
-      <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-5">
+      <section className="space-y-4 rounded-xl border border-slate-200 bg-white/70 p-5 backdrop-blur-xl">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-lg font-semibold text-slate-900">Recipe management</h2>
-            <p className="text-sm text-slate-600">Use quick controls to narrow results before opening a recipe.</p>
+            <h2 className="text-lg font-semibold text-slate-900">{tr(lang, "Recipe management", "Zarządzanie przepisami")}</h2>
+            <p className="text-sm text-slate-600">{tr(lang, "Use quick controls to narrow results before opening a recipe.", "Użyj szybkich filtrów, aby zawęzić listę przed edycją przepisu.")}</p>
           </div>
           <Link href={buildHref(activeParams, { mine: params.mine === "1" ? null : "1" })}>
             <Button type="button" variant={params.mine === "1" ? "primary" : "secondary"} size="sm">
-              My drafts
+              {tr(lang, "My drafts", "Moje szkice")}
             </Button>
           </Link>
         </div>
 
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="w-16 text-xs font-medium uppercase tracking-wide text-slate-500">Status</span>
+            <span className="w-16 text-xs font-medium uppercase tracking-wide text-slate-500">{tr(lang, "Status", "Status")}</span>
             {(["draft", "in_review", "published", "archived"] as RecipeStatus[]).map((status) => {
               const active = params.status === status;
               return (
@@ -182,13 +190,13 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
             })}
             <Link href={buildHref(activeParams, { status: null })}>
               <Button type="button" variant={!params.status ? "secondary" : "ghost"} size="sm">
-                all
+                {tr(lang, "all", "wszystkie")}
               </Button>
             </Link>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <span className="w-16 text-xs font-medium uppercase tracking-wide text-slate-500">Language</span>
+            <span className="w-16 text-xs font-medium uppercase tracking-wide text-slate-500">{tr(lang, "Language", "Język")}</span>
             {enabledLanguages.map((language) => {
               const active = params.language === language;
               return (
@@ -201,7 +209,7 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
             })}
             <Link href={buildHref(activeParams, { language: null })}>
               <Button type="button" variant={!params.language ? "secondary" : "ghost"} size="sm">
-                all
+                {tr(lang, "all", "wszystkie")}
               </Button>
             </Link>
           </div>
@@ -209,39 +217,39 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
 
         <form className="grid gap-3 border-t border-slate-200 pt-4 sm:grid-cols-4">
           <Select name="cuisine" defaultValue={params.cuisine || ""}>
-            <option value="">All cuisines</option>
+            <option value="">{tr(lang, "All cuisines", "Wszystkie kuchnie")}</option>
             {normalizedSettings.enabled_cuisines.map((cuisine) => (
               <option key={cuisine} value={cuisine}>
                 {cuisine}
               </option>
             ))}
           </Select>
-          <Input name="search" defaultValue={params.search || ""} placeholder="Search by recipe title" />
+          <Input name="search" defaultValue={params.search || ""} placeholder={tr(lang, "Search by recipe title", "Szukaj po nazwie przepisu")} />
           <input type="hidden" name="status" value={params.status || ""} />
           <input type="hidden" name="language" value={params.language || ""} />
           <input type="hidden" name="mine" value={params.mine || ""} />
           <div className="flex items-center gap-2">
-            <Button type="submit">Apply</Button>
+            <Button type="submit">{tr(lang, "Apply", "Zastosuj")}</Button>
             <Link href="/dashboard">
               <Button type="button" variant="secondary">
-                Reset
+                {tr(lang, "Reset", "Reset")}
               </Button>
             </Link>
           </div>
         </form>
 
-        {error ? <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">Could not load recipes. Please try again.</p> : null}
+        {error ? <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{tr(lang, "Could not load recipes. Please try again.", "Nie udało się pobrać przepisów. Spróbuj ponownie.")}</p> : null}
 
         <Card className="overflow-x-auto p-0">
           <table className="min-w-full divide-y divide-slate-200 text-sm">
             <thead className="bg-slate-50">
               <tr>
-                <th className="px-4 py-3 text-left font-medium text-slate-600">Recipe</th>
-                <th className="px-4 py-3 text-left font-medium text-slate-600">Status</th>
-                <th className="px-4 py-3 text-left font-medium text-slate-600">Cuisine</th>
-                <th className="px-4 py-3 text-left font-medium text-slate-600">Languages</th>
-                <th className="px-4 py-3 text-left font-medium text-slate-600">Updated</th>
-                <th className="px-4 py-3 text-left font-medium text-slate-600">Actions</th>
+                <th className="px-4 py-3 text-left font-medium text-slate-600">{tr(lang, "Recipe", "Przepis")}</th>
+                <th className="px-4 py-3 text-left font-medium text-slate-600">{tr(lang, "Status", "Status")}</th>
+                <th className="px-4 py-3 text-left font-medium text-slate-600">{tr(lang, "Cuisine", "Kuchnia")}</th>
+                <th className="px-4 py-3 text-left font-medium text-slate-600">{tr(lang, "Languages", "Języki")}</th>
+                <th className="px-4 py-3 text-left font-medium text-slate-600">{tr(lang, "Updated", "Aktualizacja")}</th>
+                <th className="px-4 py-3 text-left font-medium text-slate-600">{tr(lang, "Actions", "Akcje")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -263,13 +271,13 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
                     <div className="flex gap-2">
                       <Link href={`/recipes/${recipe.id}`}>
                         <Button type="button" variant="secondary" size="sm">
-                          Open
+                          {tr(lang, "Open", "Otwórz")}
                         </Button>
                       </Link>
                       {profile.role !== "reviewer" ? (
                         <Link href={`/recipes/${recipe.id}/translations`}>
                           <Button type="button" variant="ghost" size="sm">
-                            Translations
+                            {tr(lang, "Translations", "Tłumaczenia")}
                           </Button>
                         </Link>
                       ) : null}
@@ -280,7 +288,7 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
               {(recipes || []).length === 0 ? (
                 <tr>
                   <td className="px-4 py-8 text-sm text-slate-500" colSpan={6}>
-                    No recipes match the current filters. Adjust filters or create a new recipe.
+                    {tr(lang, "No recipes match the current filters. Adjust filters or create a new recipe.", "Brak przepisów dla wybranych filtrów. Zmień filtry lub dodaj nowy przepis.")}
                   </td>
                 </tr>
               ) : null}

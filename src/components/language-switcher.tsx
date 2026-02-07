@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import type { UILang } from "@/lib/ui-language";
+import type { UILang } from "@/lib/ui-language.client";
 
 type LanguageSwitcherProps = {
   lang: UILang;

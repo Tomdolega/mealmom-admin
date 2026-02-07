@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
+import { getClientUILang, tr } from "@/lib/ui-language.client";
 
 type ExportButtonProps = {
   language?: string;
@@ -10,6 +11,7 @@ type ExportButtonProps = {
 };
 
 export function ExportPublishedPackButton({ language, cuisine }: ExportButtonProps) {
+  const lang = getClientUILang();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,7 +36,7 @@ export function ExportPublishedPackButton({ language, cuisine }: ExportButtonPro
     setLoading(false);
 
     if (fetchError) {
-      setError("Could not export right now. Please retry.");
+      setError(tr(lang, "Could not export right now. Please retry.", "Nie udało się wyeksportować. Spróbuj ponownie."));
       return;
     }
 
@@ -53,7 +55,7 @@ export function ExportPublishedPackButton({ language, cuisine }: ExportButtonPro
   return (
     <div className="space-y-1">
       <Button type="button" variant="secondary" onClick={handleExport} disabled={loading}>
-        {loading ? "Preparing export..." : "Export published pack"}
+        {loading ? tr(lang, "Preparing export...", "Przygotowywanie eksportu...") : tr(lang, "Export published pack", "Eksportuj paczkę opublikowanych")}
       </Button>
       {error ? <p className="text-xs text-red-700">{error}</p> : null}
     </div>

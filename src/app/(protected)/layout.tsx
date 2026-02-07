@@ -1,6 +1,6 @@
 import { AppShell } from "@/components/app-shell";
 import { getCurrentProfileOrRedirect } from "@/lib/auth";
-import { getServerUILang, uiDict } from "@/lib/ui-language";
+import { getServerUILang, uiDict } from "@/lib/ui-language.server";
 
 export const dynamic = "force-dynamic";
 

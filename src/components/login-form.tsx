@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
-import { getClientUILang, tr } from "@/lib/ui-language";
+import { getClientUILang, tr } from "@/lib/ui-language.client";
 
 export function LoginForm() {
   const router = useRouter();

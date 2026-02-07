@@ -49,12 +49,6 @@ export async function getServerUILang(): Promise<UILang> {
   return normalizeUILang(store.get("ui_lang")?.value);
 }
 
-export function getClientUILang(): UILang {
-  if (typeof document === "undefined") return "en";
-  const match = document.cookie.match(/(?:^|;\s*)ui_lang=([^;]+)/);
-  return normalizeUILang(match?.[1]);
-}
-
 export function tr(lang: UILang, en: string, pl: string) {
   return lang === "pl" ? pl : en;
 }
