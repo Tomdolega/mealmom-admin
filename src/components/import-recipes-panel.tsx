@@ -9,28 +9,32 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 
 const allowedStatuses: RecipeStatus[] = ["draft", "in_review", "published", "archived"];
+const UPSERT_CHUNK_SIZE = 100;
 
 type ParsedRow = Record<string, string>;
+
+type ImportPayload = {
+  id?: string;
+  title: string;
+  language: string;
+  status: RecipeStatus;
+  primary_cuisine: string | null;
+  cuisines: string[];
+  tags: string[];
+  servings: number | null;
+  total_minutes: number | null;
+  difficulty: string | null;
+  subtitle: string | null;
+  ingredients: unknown[];
+  steps: unknown[];
+  translation_group_id?: string;
+};
 
 type ValidationResult = {
   rowIndex: number;
   raw: ParsedRow;
   errors: string[];
-  payload?: {
-    title: string;
-    language: string;
-    status: RecipeStatus;
-    primary_cuisine: string | null;
-    cuisines: string[];
-    tags: string[];
-    servings: number | null;
-    total_minutes: number | null;
-    difficulty: string | null;
-    subtitle: string | null;
-    ingredients: unknown[];
-    steps: unknown[];
-    translation_group_id?: string;
-  };
+  payload?: ImportPayload;
 };
 
 function normalizeKey(key: string) {
@@ -62,6 +66,24 @@ function toErrorCsv(items: ValidationResult[]) {
   return lines.join("\n");
 }
 
+function chunkArray<T>(items: T[], size: number) {
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+  return chunks;
+}
+
+function downloadCsv(filename: string, content: string) {
+  const blob = new Blob([content], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 type ImportRecipesPanelProps = {
   enabledLanguages: string[];
   enabledCuisines: string[];
@@ -71,8 +93,11 @@ export function ImportRecipesPanel({ enabledLanguages, enabledCuisines }: Import
   const [fileName, setFileName] = useState<string>("");
   const [rows, setRows] = useState<ParsedRow[]>([]);
   const [results, setResults] = useState<ValidationResult[]>([]);
+  const [dryRun, setDryRun] = useState(true);
   const [isImporting, setIsImporting] = useState(false);
-  const [summary, setSummary] = useState<{ created: number; failed: number } | null>(null);
+  const [summary, setSummary] = useState<{ created: number; failed: number; dryRun: boolean; validated: number } | null>(
+    null,
+  );
   const [readError, setReadError] = useState<string | null>(null);
 
   function validateRows(sourceRows: ParsedRow[]) {
@@ -120,7 +145,8 @@ export function ImportRecipesPanel({ enabledLanguages, enabledCuisines }: Import
         errors.push(`cuisine '${invalidCuisine}' is not enabled`);
       }
 
-      const payload = {
+      const payload: ImportPayload = {
+        id: row.id?.trim() || undefined,
         title,
         language,
         status: statusValue,
@@ -172,51 +198,62 @@ export function ImportRecipesPanel({ enabledLanguages, enabledCuisines }: Import
       setReadError("Could not parse file. Use CSV or XLSX with a header row.");
       setRows([]);
       setResults([]);
+      setSummary(null);
     }
   }
 
   async function importRows() {
-    const validPayloads = results.filter((item) => item.payload).map((item) => item.payload!);
-    if (validPayloads.length === 0) return;
+    const validResults = results.filter((item) => item.payload);
+    const failed: ValidationResult[] = results.filter((item) => !item.payload);
+
+    if (validResults.length === 0 && failed.length === 0) {
+      return;
+    }
+
+    if (dryRun) {
+      setSummary({ created: 0, failed: failed.length, dryRun: true, validated: validResults.length });
+      if (failed.length > 0) {
+        downloadCsv("recipe-import-errors.csv", toErrorCsv(failed));
+      }
+      return;
+    }
 
     setIsImporting(true);
     const supabase = createClient();
 
     let created = 0;
-    const failed: ValidationResult[] = [];
 
-    for (let index = 0; index < results.length; index += 1) {
-      const result = results[index];
-      if (!result.payload) {
-        failed.push(result);
+    for (const chunk of chunkArray(validResults, UPSERT_CHUNK_SIZE)) {
+      const payloads = chunk.map((item) => item.payload!);
+      const { error } = await supabase.from("recipes").upsert(payloads, { onConflict: "id" });
+
+      if (!error) {
+        created += chunk.length;
         continue;
       }
 
-      const { error } = await supabase.from("recipes").insert(result.payload);
-      if (error) {
-        failed.push({ ...result, errors: [error.message] });
-      } else {
-        created += 1;
+      for (const row of chunk) {
+        const { error: rowError } = await supabase.from("recipes").upsert(row.payload!, { onConflict: "id" });
+        if (rowError) {
+          failed.push({ ...row, errors: [rowError.message] });
+        } else {
+          created += 1;
+        }
       }
     }
 
-    setSummary({ created, failed: failed.length });
     setIsImporting(false);
+    setSummary({ created, failed: failed.length, dryRun: false, validated: validResults.length });
 
     if (failed.length > 0) {
-      const csv = toErrorCsv(failed);
-      const blob = new Blob([csv], { type: "text/csv" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "recipe-import-errors.csv";
-      link.click();
-      URL.revokeObjectURL(url);
+      downloadCsv("recipe-import-errors.csv", toErrorCsv(failed));
     }
   }
 
   const previewRows = useMemo(() => rows.slice(0, 20), [rows]);
-  const validCount = results.filter((item) => item.payload).length;
+  const validRows = useMemo(() => results.filter((item) => item.payload), [results]);
+  const validDiffPreview = useMemo(() => validRows.slice(0, 5), [validRows]);
+  const validCount = validRows.length;
   const errorCount = results.length - validCount;
 
   return (
@@ -237,6 +274,16 @@ export function ImportRecipesPanel({ enabledLanguages, enabledCuisines }: Import
         {fileName ? <p className="text-sm text-slate-600">Loaded: {fileName}</p> : null}
         {readError ? <p className="text-sm text-red-700">{readError}</p> : null}
 
+        <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            checked={dryRun}
+            onChange={(event) => setDryRun(event.target.checked)}
+            className="h-4 w-4 rounded border-slate-300"
+          />
+          Dry run (validate only, do not insert)
+        </label>
+
         <div className="flex flex-wrap items-center gap-2">
           <Button
             type="button"
@@ -246,19 +293,13 @@ export function ImportRecipesPanel({ enabledLanguages, enabledCuisines }: Import
                 "title,language,status,primary_cuisine,cuisines,tags,servings,total_minutes,difficulty,subtitle,ingredients,steps",
                 'Tomato Soup,en,draft,Polish,"Polish,Italian","quick,vegetarian",4,35,easy,"Simple and warm","[{""name"":""Tomato"",""amount"":""6"",""unit"":""pcs"",""note"":""ripe""}]","[{""step_number"":1,""text"":""Chop tomatoes"",""timer_seconds"":120}]"',
               ].join("\n");
-              const blob = new Blob([template], { type: "text/csv" });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement("a");
-              a.href = url;
-              a.download = "recipes-import-template.csv";
-              a.click();
-              URL.revokeObjectURL(url);
+              downloadCsv("recipes-import-template.csv", template);
             }}
           >
             Download template CSV
           </Button>
-          <Button type="button" onClick={importRows} disabled={isImporting || validCount === 0}>
-            {isImporting ? "Importing..." : `Import valid rows (${validCount})`}
+          <Button type="button" onClick={importRows} disabled={isImporting || (validCount === 0 && errorCount === 0)}>
+            {isImporting ? "Importing..." : dryRun ? `Run dry validation (${validCount} valid)` : `Import valid rows (${validCount})`}
           </Button>
         </div>
       </Card>
@@ -274,9 +315,50 @@ export function ImportRecipesPanel({ enabledLanguages, enabledCuisines }: Import
         </p>
         {summary ? (
           <p className="text-sm text-slate-700">
-            Import complete. Created: {summary.created}, Failed: {summary.failed}. Failed rows are downloaded as CSV.
+            {summary.dryRun
+              ? `Dry run complete. Validated rows: ${summary.validated}, errors: ${summary.failed}.`
+              : `Import complete. Created/updated: ${summary.created}, failed: ${summary.failed}.`}
           </p>
         ) : null}
+      </Card>
+
+      <Card className="space-y-3">
+        <h2 className="text-lg font-semibold">Diff-like preview (first 5 valid rows)</h2>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-slate-200 text-sm">
+            <thead className="bg-slate-50">
+              <tr>
+                <th className="px-3 py-2 text-left font-medium">Row</th>
+                <th className="px-3 py-2 text-left font-medium">Title</th>
+                <th className="px-3 py-2 text-left font-medium">Language</th>
+                <th className="px-3 py-2 text-left font-medium">Status</th>
+                <th className="px-3 py-2 text-left font-medium">Cuisines</th>
+                <th className="px-3 py-2 text-left font-medium">Ingredients</th>
+                <th className="px-3 py-2 text-left font-medium">Steps</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200">
+              {validDiffPreview.map((item) => (
+                <tr key={`valid-preview-${item.rowIndex}`}>
+                  <td className="px-3 py-2">{item.rowIndex}</td>
+                  <td className="px-3 py-2">{item.payload?.title}</td>
+                  <td className="px-3 py-2">{item.payload?.language}</td>
+                  <td className="px-3 py-2">{item.payload?.status}</td>
+                  <td className="px-3 py-2">{item.payload?.cuisines.length || 0}</td>
+                  <td className="px-3 py-2">{item.payload?.ingredients.length || 0}</td>
+                  <td className="px-3 py-2">{item.payload?.steps.length || 0}</td>
+                </tr>
+              ))}
+              {validDiffPreview.length === 0 ? (
+                <tr>
+                  <td className="px-3 py-2 text-slate-500" colSpan={7}>
+                    No valid rows to preview yet.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
       </Card>
 
       <Card className="space-y-3">
