@@ -41,6 +41,7 @@ Create `.env.local`:
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 NEXT_PUBLIC_SUPABASE_PRODUCT_IMAGES_BUCKET=recipe-images
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 ```
 
 If these are missing, `/login` shows a friendly setup message instead of crashing.
@@ -157,6 +158,7 @@ Import notes:
 - `/settings` personalization + app checks
 - `/import` admin-only CSV/XLSX import
 - `/users` admin-only role management
+  - includes invite form (email + role) that creates invite and persists role in `profiles`
 
 ## Vercel Environment + Redeploy
 

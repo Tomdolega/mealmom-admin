@@ -6,6 +6,7 @@ import type { ProfileRecord, ProfileRole } from "@/lib/types";
 import { Card } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { getClientUILang, tr } from "@/lib/ui-language.client";
 
 type UserRoleManagerProps = {
@@ -19,6 +20,10 @@ export function UserRoleManager({ profiles }: UserRoleManagerProps) {
   const [items, setItems] = useState(profiles);
   const [pendingRoles, setPendingRoles] = useState<Record<string, ProfileRole>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [inviting, setInviting] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<ProfileRole>("editor");
+  const [inviteDisplayName, setInviteDisplayName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -59,10 +64,90 @@ export function UserRoleManager({ profiles }: UserRoleManagerProps) {
     setMessage(tr(lang, "Role updated.", "Rola została zaktualizowana."));
   }
 
+  async function inviteUser() {
+    const email = inviteEmail.trim().toLowerCase();
+    if (!email) {
+      setError(tr(lang, "Enter email before inviting.", "Podaj e-mail przed wysłaniem zaproszenia."));
+      return;
+    }
+
+    setInviting(true);
+    setError(null);
+    setMessage(null);
+
+    const response = await fetch("/api/admin/invite-user", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        email,
+        role: inviteRole,
+        display_name: inviteDisplayName.trim() || undefined,
+      }),
+    });
+
+    const payload = (await response.json()) as { error?: string; profile?: ProfileRecord };
+    setInviting(false);
+
+    if (!response.ok) {
+      setError(payload.error || tr(lang, "Could not invite user.", "Nie udało się zaprosić użytkownika."));
+      return;
+    }
+
+    if (payload.profile) {
+      setItems((prev) => {
+        const exists = prev.some((item) => item.id === payload.profile!.id);
+        if (exists) {
+          return prev.map((item) => (item.id === payload.profile!.id ? payload.profile! : item));
+        }
+        return [...prev, payload.profile!];
+      });
+    }
+
+    setInviteEmail("");
+    setInviteDisplayName("");
+    setInviteRole("editor");
+    setMessage(tr(lang, "Invitation sent and role saved.", "Zaproszenie wysłane, rola zapisana."));
+  }
+
   return (
     <div className="space-y-3">
       {error ? <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
       {message ? <p className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-700">{message}</p> : null}
+
+      <Card className="space-y-3">
+        <h2 className="text-sm font-semibold text-slate-900">{tr(lang, "Invite user", "Zaproś użytkownika")}</h2>
+        <p className="text-sm text-slate-600">
+          {tr(lang, "Send invite email and set role automatically in Supabase.", "Wyślij zaproszenie e-mail i automatycznie ustaw rolę w Supabase.")}
+        </p>
+        <div className="grid gap-2 sm:grid-cols-4">
+          <Input
+            type="email"
+            placeholder={tr(lang, "email@company.com", "email@firma.com")}
+            value={inviteEmail}
+            onChange={(event) => setInviteEmail(event.target.value)}
+            disabled={inviting}
+            className="sm:col-span-2"
+          />
+          <Input
+            placeholder={tr(lang, "Display name (optional)", "Nazwa użytkownika (opcjonalnie)")}
+            value={inviteDisplayName}
+            onChange={(event) => setInviteDisplayName(event.target.value)}
+            disabled={inviting}
+          />
+          <Select value={inviteRole} onChange={(event) => setInviteRole(event.target.value as ProfileRole)} disabled={inviting}>
+            {roles.map((role) => (
+              <option key={role} value={role}>
+                {role}
+              </option>
+            ))}
+          </Select>
+        </div>
+        <div className="flex justify-end">
+          <Button type="button" onClick={() => void inviteUser()} disabled={inviting}>
+            {inviting ? tr(lang, "Inviting...", "Wysyłanie...") : tr(lang, "Send invite", "Wyślij zaproszenie")}
+          </Button>
+        </div>
+      </Card>
 
       <Card className="overflow-x-auto p-0">
         <table className="min-w-full divide-y divide-slate-200 text-sm">
