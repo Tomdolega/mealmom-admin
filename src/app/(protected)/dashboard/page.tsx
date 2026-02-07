@@ -271,38 +271,52 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {(recipes || []).map((recipe) => (
-                <tr key={recipe.id} className="hover:bg-slate-50/80">
-                  <td className="px-4 py-3">
-                    <p className="font-medium text-slate-900">{recipe.title}</p>
-                    <p className="text-xs text-slate-500">{recipe.language}</p>
-                  </td>
-                  <td className="px-4 py-3">
-                    <StatusBadge status={recipe.status} lang={lang} />
-                  </td>
-                  <td className="px-4 py-3 text-slate-700">{recipe.primary_cuisine || "-"}</td>
-                  <td className="px-4 py-3 text-xs text-slate-600">
-                    {(translationMap.get(recipe.translation_group_id) || [recipe.language]).join(", ")}
-                  </td>
-                  <td className="px-4 py-3 text-slate-600">{new Date(recipe.updated_at).toLocaleString()}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex gap-2">
-                      <Link href={`/recipes/${recipe.id}`}>
-                        <Button type="button" variant="secondary" size="sm">
-                          {tr(lang, "Open", "Otwórz")}
-                        </Button>
-                      </Link>
-                      {profile.role !== "reviewer" ? (
-                        <Link href={`/recipes/${recipe.id}/translations`}>
-                          <Button type="button" variant="ghost" size="sm">
-                            {tr(lang, "Translations", "Tłumaczenia")}
+              {(recipes || []).map((recipe) => {
+                const recipeId = typeof recipe.id === "string" && recipe.id.trim().length > 0 ? recipe.id : null;
+                if (!recipeId) {
+                  console.warn(`[${listDebugId}] Missing recipe.id in dashboard row`, recipe);
+                }
+
+                return (
+                  <tr key={recipe.id || `${recipe.translation_group_id}-${recipe.updated_at}`} className="hover:bg-slate-50/80">
+                    <td className="px-4 py-3">
+                      <p className="font-medium text-slate-900">{recipe.title}</p>
+                      <p className="text-xs text-slate-500">{recipe.language}</p>
+                    </td>
+                    <td className="px-4 py-3">
+                      <StatusBadge status={recipe.status} lang={lang} />
+                    </td>
+                    <td className="px-4 py-3 text-slate-700">{recipe.primary_cuisine || "-"}</td>
+                    <td className="px-4 py-3 text-xs text-slate-600">
+                      {(translationMap.get(recipe.translation_group_id) || [recipe.language]).join(", ")}
+                    </td>
+                    <td className="px-4 py-3 text-slate-600">{new Date(recipe.updated_at).toLocaleString()}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex gap-2">
+                        {recipeId ? (
+                          <Link href={`/recipes/${recipeId}`}>
+                            <Button type="button" variant="secondary" size="sm">
+                              {tr(lang, "Open", "Otwórz")}
+                            </Button>
+                          </Link>
+                        ) : (
+                          // Defensive guard: avoid broken routing when identifier is missing.
+                          <Button type="button" variant="secondary" size="sm" disabled>
+                            {tr(lang, "Open", "Otwórz")}
                           </Button>
-                        </Link>
-                      ) : null}
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                        )}
+                        {profile.role !== "reviewer" && recipeId ? (
+                          <Link href={`/recipes/${recipeId}/translations`}>
+                            <Button type="button" variant="ghost" size="sm">
+                              {tr(lang, "Translations", "Tłumaczenia")}
+                            </Button>
+                          </Link>
+                        ) : null}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
               {(recipes || []).length === 0 ? (
                 <tr>
                   <td className="px-4 py-8 text-sm text-slate-500" colSpan={6}>

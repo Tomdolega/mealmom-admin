@@ -14,18 +14,22 @@ type RecipeEditProps = {
 };
 
 type TranslationSummaryItem = Pick<RecipeRecord, "id" | "language" | "status">;
+type RecipeCoreRow = Omit<RecipeRecord, "image_urls">;
+
+const RECIPE_EDIT_CORE_COLUMNS =
+  "id, translation_group_id, language, title, subtitle, status, primary_cuisine, cuisines, tags, servings, total_minutes, difficulty, ingredients, steps, created_by, updated_by, created_at, updated_at, published_at";
 
 export default async function RecipeEditPage({ params }: RecipeEditProps) {
   const [{ supabase, profile }, { id }, lang] = await Promise.all([getCurrentProfileOrRedirect(), params, getServerUILang()]);
+  const debugId = `recipe-edit-${id.slice(0, 8)}`;
 
-  const [{ data: recipe, error }, { data: appSettings }] = await Promise.all([
+  const [{ data: recipeCore, error: coreError }, { data: appSettings }] = await Promise.all([
     supabase
       .from("recipes")
-      .select(
-        "id, translation_group_id, language, title, subtitle, status, primary_cuisine, cuisines, tags, servings, total_minutes, difficulty, image_urls, ingredients, steps, created_by, updated_by, created_at, updated_at, published_at",
-      )
+      // Keep this query schema-stable: avoid optional migrated columns causing false 404s.
+      .select(RECIPE_EDIT_CORE_COLUMNS)
       .eq("id", id)
-      .maybeSingle<RecipeRecord>(),
+      .maybeSingle<RecipeCoreRow>(),
     supabase
       .from("app_settings")
       .select("id, default_language, enabled_languages, enabled_cuisines, created_at, updated_at")
@@ -33,9 +37,37 @@ export default async function RecipeEditPage({ params }: RecipeEditProps) {
       .maybeSingle<AppSettingsRecord>(),
   ]);
 
-  if (error || !recipe) {
+  if (coreError || !recipeCore) {
+    if (coreError) {
+      console.error(`[${debugId}] Recipe edit core query failed`, {
+        message: coreError.message,
+        code: coreError.code,
+        details: coreError.details,
+        hint: coreError.hint,
+      });
+    }
     notFound();
   }
+
+  // Optional migration column fetch: fallback to [] if column doesn't exist in this environment.
+  const { data: imageData, error: imageError } = await supabase
+    .from("recipes")
+    .select("image_urls")
+    .eq("id", id)
+    .maybeSingle<{ image_urls: string[] | null }>();
+  if (imageError) {
+    console.warn(`[${debugId}] Optional image_urls unavailable; continuing without images.`, {
+      message: imageError.message,
+      code: imageError.code,
+      details: imageError.details,
+      hint: imageError.hint,
+    });
+  }
+
+  const recipe: RecipeRecord = {
+    ...recipeCore,
+    image_urls: imageData?.image_urls || [],
+  };
 
   const { data: translations } = await supabase
     .from("recipes")
