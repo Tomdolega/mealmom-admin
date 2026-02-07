@@ -11,6 +11,7 @@ import { getClientUILang, tr } from "@/lib/ui-language.client";
 export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const nextPath = searchParams.get("next");
   const lang = getClientUILang();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -47,7 +48,8 @@ export function LoginForm() {
       return;
     }
 
-    router.push("/dashboard");
+    const destination = nextPath && nextPath.startsWith("/") ? nextPath : "/dashboard";
+    router.push(destination);
     router.refresh();
   }
 
