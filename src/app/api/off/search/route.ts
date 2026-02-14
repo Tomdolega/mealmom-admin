@@ -1,7 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { mapFoodProductToSearchResult, offSearchItemToFoodProductUpsert } from "@/lib/food-products";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { fetchOffSearch, simplifyOffSearchPayload } from "@/lib/off";
+import type { FoodProductRecord } from "@/lib/types";
 
 const SEARCH_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const RATE_LIMIT_PER_MINUTE = 30;
@@ -56,6 +58,28 @@ export async function GET(request: NextRequest) {
     .maybeSingle<{ payload: unknown; expires_at: string }>();
 
   if (!cacheReadError && cached && new Date(cached.expires_at).getTime() > Date.now()) {
+    const cachedResults = Array.isArray(cached.payload) ? cached.payload : [];
+    const sourceIds = cachedResults
+      .map((item) => (typeof item === "object" && item ? String((item as { barcode?: string }).barcode || "") : ""))
+      .filter(Boolean);
+    if (sourceIds.length > 0) {
+      const { data: localRows } = await admin
+        .from("food_products")
+        .select(
+          "id, source, source_id, barcode, name_pl, name_en, brand, categories, nutriments, kcal_100g, protein_100g, fat_100g, carbs_100g, sugar_100g, fiber_100g, salt_100g, created_at, updated_at",
+        )
+        .eq("source", "openfoodfacts")
+        .in("source_id", sourceIds)
+        .returns<FoodProductRecord[]>();
+      if (localRows && localRows.length > 0) {
+        return NextResponse.json({
+          source: "cache",
+          query: q,
+          lc,
+          results: localRows.map(mapFoodProductToSearchResult),
+        });
+      }
+    }
     return NextResponse.json({
       source: "cache",
       query: q,
@@ -67,6 +91,18 @@ export async function GET(request: NextRequest) {
   try {
     const rawPayload = await fetchOffSearch(q, lc);
     const simplified = simplifyOffSearchPayload(rawPayload);
+    if (simplified.length > 0) {
+      const upserts = simplified.map((item) => offSearchItemToFoodProductUpsert(item));
+      const { error: productWriteError } = await admin
+        .from("food_products")
+        .upsert(upserts, { onConflict: "source,source_id" });
+      if (productWriteError) {
+        console.warn("OFF search food_products upsert failed", {
+          message: productWriteError.message,
+          code: productWriteError.code,
+        });
+      }
+    }
     const expiresAt = new Date(Date.now() + SEARCH_TTL_MS).toISOString();
 
     const { error: cacheWriteError } = await admin.from("search_cache").upsert(
@@ -85,11 +121,42 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    const sourceIds = simplified.map((item) => item.barcode).filter(Boolean);
+    const { data: localRows } = sourceIds.length
+      ? await admin
+          .from("food_products")
+          .select(
+            "id, source, source_id, barcode, name_pl, name_en, brand, categories, nutriments, kcal_100g, protein_100g, fat_100g, carbs_100g, sugar_100g, fiber_100g, salt_100g, created_at, updated_at",
+          )
+          .eq("source", "openfoodfacts")
+          .in("source_id", sourceIds)
+          .returns<FoodProductRecord[]>()
+      : { data: [] as FoodProductRecord[] };
+
     return NextResponse.json({
       source: "off",
       query: q,
       lc,
-      results: simplified,
+      results:
+        localRows && localRows.length > 0
+          ? localRows.map(mapFoodProductToSearchResult)
+          : simplified.map((item) => ({
+              id: item.barcode,
+              product_id: item.barcode,
+              source: "openfoodfacts",
+              source_id: item.barcode,
+              barcode: item.barcode,
+              name: item.name,
+              brand: item.brands,
+              categories: item.categories,
+              kcal_100g: null,
+              protein_100g: null,
+              fat_100g: null,
+              carbs_100g: null,
+              sugar_100g: null,
+              fiber_100g: null,
+              salt_100g: null,
+            })),
     });
   } catch (error) {
     console.error("OFF search failed", { query: q, lc, error });
