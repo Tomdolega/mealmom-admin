@@ -2,20 +2,20 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { RecipeDetailManagement } from "@/components/recipe-detail-management";
 import { RecipeForm } from "@/components/recipe-form";
+import { RecipeTranslationTabs } from "@/components/recipe-translation-tabs";
 import { RecipeThumbnail } from "@/components/recipe-thumbnail";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { StatusBadge } from "@/components/ui/badge";
 import { getCurrentProfileOrRedirect } from "@/lib/auth";
 import { normalizeAppSettings } from "@/lib/settings";
 import { getServerUILang, tr } from "@/lib/ui-language.server";
-import type { AppSettingsRecord, LabelRecord, RecipeRecord } from "@/lib/types";
+import type { AppSettingsRecord, LabelRecord, RecipeRecord, RecipeTranslationRecord } from "@/lib/types";
 
 type RecipeEditProps = {
   params: Promise<{ id: string }>;
 };
 
-type TranslationSummaryItem = Pick<RecipeRecord, "id" | "language" | "status" | "title" | "image_urls">;
+type TranslationSummaryItem = Pick<RecipeTranslationRecord, "id" | "locale" | "translation_status" | "title">;
 type RecipeCoreRow = Pick<
   RecipeRecord,
   | "id"
@@ -139,40 +139,12 @@ export default async function RecipeEditPage({ params }: RecipeEditProps) {
     image_urls: imageData?.image_urls || [],
   };
 
-  const { data: translationsCoreList } = await supabase
-    .from("recipes")
-    .select("id, language, status, title")
-    .eq("translation_group_id", recipe.translation_group_id)
-    .order("language", { ascending: true })
-    .returns<Array<{ id: string; language: string; status: RecipeRecord["status"]; title: string }>>();
-
-  const translationIds = (translationsCoreList || []).map((item) => item.id);
-  const translationImageMap = new Map<string, string[]>();
-  if (translationIds.length > 0) {
-    const { data: translationImages, error: translationImagesError } = await supabase
-      .from("recipes")
-      .select("id, image_urls")
-      .in("id", translationIds)
-      .returns<Array<{ id: string; image_urls: string[] | null }>>();
-
-    if (translationImagesError) {
-      console.warn(`[${debugId}] Optional translation image_urls unavailable; continuing without translation thumbnails.`, {
-        message: translationImagesError.message,
-        code: translationImagesError.code,
-        details: translationImagesError.details,
-        hint: translationImagesError.hint,
-      });
-    } else {
-      for (const row of translationImages || []) {
-        translationImageMap.set(row.id, row.image_urls || []);
-      }
-    }
-  }
-
-  const translations: TranslationSummaryItem[] = (translationsCoreList || []).map((item) => ({
-    ...item,
-    image_urls: translationImageMap.get(item.id) || [],
-  }));
+  const { data: translations } = await supabase
+    .from("recipe_translations")
+    .select("id, recipe_id, locale, title, short_phrase, joanna_says, ingredients, steps, tips, substitutions, translation_status, created_at, updated_at")
+    .eq("recipe_id", recipe.id)
+    .order("locale", { ascending: true })
+    .returns<RecipeTranslationRecord[]>();
 
   const [{ data: labels }, { data: recipeLabelLinks }] = await Promise.all([
     supabase
@@ -210,19 +182,30 @@ export default async function RecipeEditPage({ params }: RecipeEditProps) {
       <Card className="space-y-3">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">{tr(lang, "Translations summary", "Podsumowanie tłumaczeń")}</h2>
         <div className="flex flex-wrap gap-2">
-          {(translations || []).map((translation) => (
+          {((translations || []) as TranslationSummaryItem[]).map((translation) => (
             <Link
               key={translation.id}
-              href={`/recipes/${translation.id}`}
+              href={`/recipes/${recipe.id}`}
               className="inline-flex items-center gap-2 rounded-md bg-slate-50 px-2.5 py-1.5 text-sm text-slate-700 hover:bg-slate-100"
             >
-              <RecipeThumbnail imageUrl={translation.image_urls?.[0] || null} title={translation.title} size="sm" />
-              <span>{translation.language}</span>
-              <StatusBadge status={translation.status} lang={lang} />
+              <RecipeThumbnail imageUrl={recipe.image_urls?.[0] || null} title={translation.title || recipe.title} size="sm" />
+              <span>{translation.locale}</span>
+              <span className="inline-flex rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-xs text-slate-700">
+                {translation.translation_status}
+              </span>
             </Link>
           ))}
         </div>
       </Card>
+
+      <RecipeTranslationTabs
+        recipeId={recipe.id}
+        role={profile.role}
+        enabledLocales={normalizedSettings.enabled_languages}
+        defaultLocale={normalizedSettings.default_language}
+        canGenerateTranslation={Boolean(process.env.OPENAI_API_KEY || process.env.DEEPL_API_KEY)}
+        initialTranslations={translations || []}
+      />
 
       <RecipeDetailManagement
         recipeId={recipe.id}

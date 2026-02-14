@@ -438,6 +438,38 @@ export function RecipeForm({
         return;
       }
 
+      const translationStatus =
+        payload.status === "published"
+          ? "published"
+          : payload.status === "in_review"
+            ? "in_review"
+            : "draft";
+      const translationUpsert = await supabase.from("recipe_translations").upsert(
+        {
+          recipe_id: result.data.id,
+          locale: payload.language,
+          title: payload.title,
+          short_phrase: payload.subtitle,
+          joanna_says: payload.description,
+          ingredients: payload.ingredients,
+          steps: payload.steps,
+          substitutions: payload.substitutions,
+          translation_status: translationStatus,
+        },
+        { onConflict: "recipe_id,locale" },
+      );
+
+      if (translationUpsert.error) {
+        console.warn("Recipe translation upsert after recipe save failed", {
+          message: translationUpsert.error.message,
+          code: translationUpsert.error.code,
+          details: translationUpsert.error.details,
+          hint: translationUpsert.error.hint,
+          recipeId: result.data.id,
+          locale: payload.language,
+        });
+      }
+
       let refreshedRecipe: RecipeRecord | null = null;
       if (result.data?.id) {
         const refetch = await supabase
