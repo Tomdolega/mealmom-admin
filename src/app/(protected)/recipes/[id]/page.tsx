@@ -2,20 +2,20 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { RecipeDetailManagement } from "@/components/recipe-detail-management";
 import { RecipeForm } from "@/components/recipe-form";
-import { RecipeTranslationTabs } from "@/components/recipe-translation-tabs";
+import { RecipeLanguageGroupTabs } from "@/components/recipe-language-group-tabs";
 import { RecipeThumbnail } from "@/components/recipe-thumbnail";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { getCurrentProfileOrRedirect } from "@/lib/auth";
 import { normalizeAppSettings } from "@/lib/settings";
 import { getServerUILang, tr } from "@/lib/ui-language.server";
-import type { AppSettingsRecord, LabelRecord, RecipeRecord, RecipeTranslationRecord } from "@/lib/types";
+import { getLocaleLabel } from "@/lib/translation-config";
+import type { AppSettingsRecord, LabelRecord, RecipeRecord } from "@/lib/types";
 
 type RecipeEditProps = {
   params: Promise<{ id: string }>;
 };
 
-type TranslationSummaryItem = Pick<RecipeTranslationRecord, "id" | "locale" | "translation_status" | "title">;
 type RecipeCoreRow = Pick<
   RecipeRecord,
   | "id"
@@ -139,12 +139,12 @@ export default async function RecipeEditPage({ params }: RecipeEditProps) {
     image_urls: imageData?.image_urls || [],
   };
 
-  const { data: translations } = await supabase
-    .from("recipe_translations")
-    .select("id, recipe_id, locale, title, short_phrase, joanna_says, ingredients, steps, tips, substitutions, translation_status, created_at, updated_at")
-    .eq("recipe_id", recipe.id)
-    .order("locale", { ascending: true })
-    .returns<RecipeTranslationRecord[]>();
+  const { data: languageVariants } = await supabase
+    .from("recipes")
+    .select("id, language, status, title")
+    .eq("translation_group_id", recipe.translation_group_id)
+    .order("language", { ascending: true })
+    .returns<Array<{ id: string; language: string; status: string; title: string }>>();
 
   const [{ data: labels }, { data: recipeLabelLinks }] = await Promise.all([
     supabase
@@ -180,31 +180,36 @@ export default async function RecipeEditPage({ params }: RecipeEditProps) {
       </section>
 
       <Card className="space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">{tr(lang, "Translations summary", "Podsumowanie tłumaczeń")}</h2>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">{tr(lang, "Language overview", "Podsumowanie języków")}</h2>
         <div className="flex flex-wrap gap-2">
-          {((translations || []) as TranslationSummaryItem[]).map((translation) => (
+          {(languageVariants || []).map((variant) => (
             <Link
-              key={translation.id}
-              href={`/recipes/${recipe.id}`}
+              key={variant.id}
+              href={`/recipes/${variant.id}`}
               className="inline-flex items-center gap-2 rounded-md bg-slate-50 px-2.5 py-1.5 text-sm text-slate-700 hover:bg-slate-100"
             >
-              <RecipeThumbnail imageUrl={recipe.image_urls?.[0] || null} title={translation.title || recipe.title} size="sm" />
-              <span>{translation.locale}</span>
+              <RecipeThumbnail imageUrl={recipe.image_urls?.[0] || null} title={variant.title || recipe.title} size="sm" />
+              <span>
+                {getLocaleLabel(variant.language).flag} {variant.language}
+              </span>
               <span className="inline-flex rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-xs text-slate-700">
-                {translation.translation_status}
+                {variant.status}
               </span>
             </Link>
           ))}
         </div>
       </Card>
 
-      <RecipeTranslationTabs
+      <RecipeLanguageGroupTabs
         recipeId={recipe.id}
-        role={profile.role}
-        enabledLocales={normalizedSettings.enabled_languages}
-        defaultLocale={normalizedSettings.default_language}
-        canGenerateTranslation={Boolean(process.env.OPENAI_API_KEY || process.env.DEEPL_API_KEY)}
-        initialTranslations={translations || []}
+        currentLanguage={recipe.language}
+        enabledLanguages={normalizedSettings.enabled_languages}
+        variants={(languageVariants || []).map((item) => ({
+          id: item.id,
+          language: item.language,
+          status: item.status,
+        }))}
+        canManage={profile.role !== "reviewer"}
       />
 
       <RecipeDetailManagement

@@ -1008,13 +1008,22 @@ export function RecipeForm({
             </FormField>
           </div>
           <FormField label={tt("Language", "Język")}>
-            <Select value={recipeLanguage} onChange={(e) => setRecipeLanguage(e.target.value)} disabled={!canEditContent}>
+            <Select
+              value={recipeLanguage}
+              onChange={(e) => setRecipeLanguage(e.target.value)}
+              disabled={!canEditContent || mode === "edit"}
+            >
               {enabledLanguages.map((item) => (
                 <option key={item} value={item}>
                   {item}
                 </option>
               ))}
             </Select>
+            {mode === "edit" ? (
+              <p className="mt-1 text-xs text-slate-500">
+                {tt("Use language tabs above to switch language variants.", "Użyj zakładek językowych powyżej, aby przełączać warianty językowe.")}
+              </p>
+            ) : null}
           </FormField>
           <FormField label={tt("Status", "Status")}>
             <Select value={status} onChange={(e) => setStatus(e.target.value as RecipeStatus)} disabled={role === "reviewer" ? !reviewerStatusEditable : false}>
