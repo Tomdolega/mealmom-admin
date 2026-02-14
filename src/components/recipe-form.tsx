@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "re
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
+import { IngredientProductLinker } from "@/components/ingredient-product-linker";
 import type {
   IngredientItem,
   IngredientSubstitution,
@@ -21,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { getRecipeStatusLabel } from "@/lib/recipe-status";
+import { computeRecipeNutritionSummary, suggestSubstitutionsForIngredient } from "@/lib/nutrition";
 import { getClientUILang, tr } from "@/lib/ui-language.client";
 
 const allStatuses: RecipeStatus[] = ["draft", "in_review", "published", "archived"];
@@ -53,6 +55,7 @@ type RecipePayload = {
   total_minutes: number | null;
   difficulty: string | null;
   nutrition: NutritionRecord;
+  nutrition_summary: NonNullable<RecipeRecord["nutrition_summary"]>;
   substitutions: IngredientSubstitution[];
   image_urls: string[];
   ingredients: ReturnType<typeof normalizeIngredients>;
@@ -64,6 +67,7 @@ const nutritionKeys: Array<keyof NutritionValues> = [
   "protein_g",
   "fat_g",
   "carbs_g",
+  "sugar_g",
   "fiber_g",
   "salt_g",
 ];
@@ -74,6 +78,7 @@ function toNutritionInput(values?: Partial<NutritionValues>) {
     protein_g: values?.protein_g != null ? String(values.protein_g) : "",
     fat_g: values?.fat_g != null ? String(values.fat_g) : "",
     carbs_g: values?.carbs_g != null ? String(values.carbs_g) : "",
+    sugar_g: values?.sugar_g != null ? String(values.sugar_g) : "",
     fiber_g: values?.fiber_g != null ? String(values.fiber_g) : "",
     salt_g: values?.salt_g != null ? String(values.salt_g) : "",
   };
@@ -128,6 +133,11 @@ function normalizeIngredients(items: IngredientItem[]) {
       amount: item.amount.trim(),
       unit: item.unit.trim(),
       note: item.note?.trim() || "",
+      off_barcode: item.off_barcode?.trim() || undefined,
+      off_product_name: item.off_product_name?.trim() || undefined,
+      off_nutrition_per_100g: item.off_nutrition_per_100g || undefined,
+      off_image_url: item.off_image_url?.trim() || undefined,
+      off_categories: Array.isArray(item.off_categories) ? item.off_categories.filter(Boolean) : undefined,
     }))
     .filter((item) => item.name.length > 0);
 }
@@ -226,6 +236,7 @@ export function RecipeForm({
       total_minutes: recipe?.total_minutes ?? null,
       difficulty: recipe?.difficulty || null,
       nutrition: recipe?.nutrition || {},
+      nutrition_summary: recipe?.nutrition_summary || {},
       substitutions: recipe?.substitutions || [],
       image_urls: recipe?.image_urls || [],
       ingredients: recipe?.ingredients || [],
@@ -238,6 +249,10 @@ export function RecipeForm({
   const reviewerStatusEditable = role === "reviewer" && mode === "edit" && recipe?.status === "in_review";
   const allowedStatuses = useMemo(() => statusOptionsForRole(role, mode, recipe?.status || status), [mode, recipe?.status, role, status]);
   const availableCuisineOptions = enabledCuisines.filter((item) => !selectedCuisines.includes(item));
+  const nutritionSummary = useMemo(
+    () => computeRecipeNutritionSummary(normalizeIngredients(ingredients), servings ? Number(servings) : null),
+    [ingredients, servings],
+  );
 
   const basePayload = useMemo(
     () => ({
@@ -257,6 +272,7 @@ export function RecipeForm({
         per_serving: normalizeNutritionValues(nutritionPerServing),
         per_100g: normalizeNutritionValues(nutritionPer100g),
       },
+      nutrition_summary: computeRecipeNutritionSummary(normalizeIngredients(ingredients), servings ? Number(servings) : null),
       substitutions: normalizeSubstitutions(substitutions),
       image_urls: imageUrls,
       ingredients: normalizeIngredients(ingredients),
@@ -316,6 +332,10 @@ export function RecipeForm({
         candidate.total_minutes && String(candidate.total_minutes).trim() !== ""
           ? Number(candidate.total_minutes)
           : null;
+      const nextNutritionSummary =
+        candidate.nutrition_summary && typeof candidate.nutrition_summary === "object"
+          ? candidate.nutrition_summary
+          : computeRecipeNutritionSummary(nextIngredients as IngredientItem[], servingsNumber);
 
       if (!nextTitle) {
         return { payload: null, message: tt("Title is required.", "Tytuł jest wymagany.") };
@@ -356,6 +376,7 @@ export function RecipeForm({
         total_minutes: totalMinutesNumber,
         difficulty: candidate.difficulty,
         nutrition: nextNutrition,
+        nutrition_summary: nextNutritionSummary,
         substitutions: nextSubstitutions,
         image_urls: nextImageUrls,
         ingredients: nextIngredients,
@@ -475,7 +496,7 @@ export function RecipeForm({
         const refetch = await supabase
           .from("recipes")
           .select(
-            "id, translation_group_id, language, title, subtitle, description, status, primary_cuisine, cuisines, tags, servings, total_minutes, difficulty, nutrition, substitutions, image_urls, ingredients, steps, created_by, updated_by, created_at, updated_at, published_at",
+            "id, translation_group_id, language, title, subtitle, description, status, primary_cuisine, cuisines, tags, servings, total_minutes, difficulty, nutrition, nutrition_summary, substitutions, image_urls, ingredients, steps, created_by, updated_by, created_at, updated_at, published_at",
           )
           .eq("id", result.data.id)
           .maybeSingle<RecipeRecord>();
@@ -536,6 +557,12 @@ export function RecipeForm({
                 total_minutes: refreshedRecipe.total_minutes,
                 difficulty: refreshedRecipe.difficulty,
                 nutrition: refreshedRecipe.nutrition,
+                nutrition_summary:
+                  refreshedRecipe.nutrition_summary ||
+                  computeRecipeNutritionSummary(
+                    (Array.isArray(refreshedRecipe.ingredients) ? refreshedRecipe.ingredients : []) as IngredientItem[],
+                    refreshedRecipe.servings ?? null,
+                  ),
                 substitutions: refreshedRecipe.substitutions,
                 image_urls: refreshedRecipe.image_urls,
                 ingredients: refreshedRecipe.ingredients,
@@ -923,6 +950,49 @@ export function RecipeForm({
             </div>
           </div>
         </div>
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <div className="mb-2 flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-slate-700">{tt("Auto nutrition summary from linked OFF products", "Automatyczne nutrition z podpiętych produktów OFF")}</h3>
+            {canEditContent ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  setNutritionPerServing({
+                    kcal: nutritionSummary.per_serving?.kcal != null ? String(nutritionSummary.per_serving.kcal) : "",
+                    protein_g: nutritionSummary.per_serving?.protein_g != null ? String(nutritionSummary.per_serving.protein_g) : "",
+                    fat_g: nutritionSummary.per_serving?.fat_g != null ? String(nutritionSummary.per_serving.fat_g) : "",
+                    carbs_g: nutritionSummary.per_serving?.carbs_g != null ? String(nutritionSummary.per_serving.carbs_g) : "",
+                    sugar_g: nutritionSummary.per_serving?.sugar_g != null ? String(nutritionSummary.per_serving.sugar_g) : "",
+                    fiber_g: nutritionSummary.per_serving?.fiber_g != null ? String(nutritionSummary.per_serving.fiber_g) : "",
+                    salt_g: nutritionSummary.per_serving?.salt_g != null ? String(nutritionSummary.per_serving.salt_g) : "",
+                  });
+                  setNutritionPer100g({
+                    kcal: nutritionSummary.per_100g?.kcal != null ? String(nutritionSummary.per_100g.kcal) : "",
+                    protein_g: nutritionSummary.per_100g?.protein_g != null ? String(nutritionSummary.per_100g.protein_g) : "",
+                    fat_g: nutritionSummary.per_100g?.fat_g != null ? String(nutritionSummary.per_100g.fat_g) : "",
+                    carbs_g: nutritionSummary.per_100g?.carbs_g != null ? String(nutritionSummary.per_100g.carbs_g) : "",
+                    sugar_g: nutritionSummary.per_100g?.sugar_g != null ? String(nutritionSummary.per_100g.sugar_g) : "",
+                    fiber_g: nutritionSummary.per_100g?.fiber_g != null ? String(nutritionSummary.per_100g.fiber_g) : "",
+                    salt_g: nutritionSummary.per_100g?.salt_g != null ? String(nutritionSummary.per_100g.salt_g) : "",
+                  });
+                }}
+              >
+                {tt("Apply to manual nutrition", "Przenieś do manual nutrition")}
+              </Button>
+            ) : null}
+          </div>
+          <div className="grid gap-2 text-sm text-slate-700 sm:grid-cols-2 lg:grid-cols-4">
+            <p>kcal: {nutritionSummary.kcal || 0}</p>
+            <p>protein_g: {nutritionSummary.protein_g || 0}</p>
+            <p>fat_g: {nutritionSummary.fat_g || 0}</p>
+            <p>carbs_g: {nutritionSummary.carbs_g || 0}</p>
+            <p>sugar_g: {nutritionSummary.sugar_g || 0}</p>
+            <p>fiber_g: {nutritionSummary.fiber_g || 0}</p>
+            <p>salt_g: {nutritionSummary.salt_g || 0}</p>
+          </div>
+        </div>
       </section>
 
       <section className="space-y-4 rounded-xl border border-slate-200 bg-white/70 p-4 backdrop-blur-xl">
@@ -993,6 +1063,60 @@ export function RecipeForm({
                 <Input placeholder={tt("Amount", "Ilość")} value={ingredient.amount} disabled={!canEditContent} onChange={(e) => setIngredients((prev) => prev.map((item, i) => (i === index ? { ...item, amount: e.target.value } : item)))} />
                 <Input placeholder={tt("Unit", "Jednostka")} value={ingredient.unit} disabled={!canEditContent} onChange={(e) => setIngredients((prev) => prev.map((item, i) => (i === index ? { ...item, unit: e.target.value } : item)))} />
                 <Input placeholder={tt("Note (optional)", "Notatka (opcjonalnie)")} value={ingredient.note || ""} disabled={!canEditContent} onChange={(e) => setIngredients((prev) => prev.map((item, i) => (i === index ? { ...item, note: e.target.value } : item)))} />
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <IngredientProductLinker
+                  disabled={!canEditContent}
+                  onSelect={(product) => {
+                    setIngredients((prev) =>
+                      prev.map((item, i) =>
+                        i === index
+                          ? {
+                              ...item,
+                              off_barcode: product.barcode,
+                              off_product_name: product.name,
+                              off_nutrition_per_100g: product.nutrition_per_100g,
+                              off_image_url: product.image_url || undefined,
+                              off_categories: product.categories || [],
+                            }
+                          : item,
+                      ),
+                    );
+                  }}
+                />
+                {ingredient.off_product_name ? (
+                  <span className="text-xs text-slate-600">
+                    {ingredient.off_product_name} ({ingredient.off_barcode || "—"}) · {tt("kcal/100g", "kcal/100g")}: {ingredient.off_nutrition_per_100g?.kcal ?? "—"}
+                  </span>
+                ) : null}
+                {canEditContent ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      const suggestions = suggestSubstitutionsForIngredient(ingredient);
+                      const slotKey = getIngredientSlotKey(ingredient, index);
+                      setSubstitutions((prev) => {
+                        const existing = prev.find((item) => item.ingredient_key === slotKey);
+                        const mapped = suggestions.map((item) => ({
+                          alt_name: item.alt_name,
+                          ratio: "1:1",
+                          note: item.note,
+                          dietary_tags: [],
+                        }));
+                        if (!existing) {
+                          return [...prev, { ingredient_key: slotKey, alternatives: mapped }];
+                        }
+                        return prev.map((item) =>
+                          item.ingredient_key === slotKey ? { ...item, alternatives: [...item.alternatives, ...mapped] } : item,
+                        );
+                      });
+                    }}
+                  >
+                    {tt("Suggest swaps", "Zasugeruj zamienniki")}
+                  </Button>
+                ) : null}
               </div>
               <div className="space-y-2 rounded-md border border-slate-200 bg-white p-2">
                 <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{tt("Substitutions", "Zamienniki")}</p>

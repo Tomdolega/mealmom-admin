@@ -49,6 +49,10 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 NEXT_PUBLIC_SUPABASE_PRODUCT_IMAGES_BUCKET=recipe-images
 NEXT_PUBLIC_SITE_URL=https://joanka.cafe
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+OFF_BASE_URL=https://world.openfoodfacts.org
+OFF_USER_AGENT="MealMom/1.0 (tom@tomdolega.com)"
+OPENAI_API_KEY=optional_for_translation_generation
+DEEPL_API_KEY=optional_for_translation_generation
 ```
 
 If these are missing, `/login` shows a friendly setup message instead of crashing.
@@ -99,6 +103,7 @@ Run SQL files in order:
 7. `supabase/007_recipes_professional_fields.sql`
 8. `supabase/008_recipe_management_soft_delete_labels.sql`
 9. `supabase/009_recipe_translations.sql`
+10. `supabase/010_openfoodfacts_cache_and_nutrition.sql`
 
 In Supabase Dashboard SQL Editor, paste and run each file.
 
@@ -226,7 +231,40 @@ Feed behavior (single config):
 - Published feed returns:
   - recipes with `deleted_at is null` and `status='published'`
   - translation for requested locale with `translation_status='published'`
-  - optional fallback to default locale (marked as fallback in response)
+- optional fallback to default locale (marked as fallback in response)
+
+## OpenFoodFacts Integration
+
+- Backend-only OFF proxy routes:
+  - `GET /api/off/search?q=...&lc=pl`
+  - `GET /api/off/product/:barcode?lc=pl`
+- Never call OFF directly from client apps.
+- Request policy:
+  - sends `OFF_USER_AGENT` header
+  - throttles per-IP in API (30/min baseline)
+  - caches responses in Supabase:
+    - `search_cache` TTL: 7 days
+    - `product_cache` TTL: 30 days
+- Ingredient lines now support OFF linkage fields:
+  - `off_barcode`
+  - `off_product_name`
+  - `off_nutrition_per_100g`
+  - `off_categories`
+  - `off_image_url`
+- `recipes.nutrition_summary` is computed from linked OFF products + ingredient amount/unit.
+
+### Limits and usage notes
+
+- OFF search has low limits: avoid search-as-you-type without debounce/cache.
+- Admin uses 500ms debounce and server cache first.
+- If OFF is unavailable, API returns friendly 5xx messages and keeps existing recipe editing intact.
+
+### Debug checklist
+
+1. Open recipe editor, add 3 ingredients, click `Link to product` for each.
+2. Save recipe and verify `nutrition_summary` is populated in DB.
+3. Verify `GET /api/off/search` returns `source: cache` for repeated queries.
+4. Verify published feed (`getPublishedRecipes`) includes nutrition + ingredients preview and excludes trashed recipes.
 
 ## Vercel Environment + Redeploy
 
