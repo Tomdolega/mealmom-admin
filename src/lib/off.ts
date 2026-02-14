@@ -21,6 +21,8 @@ export type OffSearchItem = {
   image_url: string | null;
   allergens: string[];
   categories: string[];
+  nutrition_per_100g: OffNutritionPer100g;
+  nutriments_raw: Record<string, unknown>;
 };
 
 export type OffProductCore = {
@@ -94,6 +96,8 @@ export function simplifyOffSearchPayload(payload: unknown): OffSearchItem[] {
         image_url: asString(product.image_front_small_url) || asString(product.image_small_url),
         allergens: splitCsv(product.allergens_tags || product.allergens),
         categories: splitCsv(product.categories_tags || product.categories),
+        nutrition_per_100g: parseNutriments((product.nutriments || null) as Record<string, unknown> | null),
+        nutriments_raw: ((product.nutriments || {}) as Record<string, unknown>),
       };
     })
     .filter((item): item is OffSearchItem => Boolean(item));
@@ -119,16 +123,17 @@ export function simplifyOffProductPayload(payload: unknown, barcode: string): Of
   };
 }
 
-export async function fetchOffSearch(q: string, lc = "pl") {
+export async function fetchOffSearch(q: string, lc = "pl", page = 1, pageSize = 12) {
   const url = new URL(`${getOffBaseUrl().replace(/\/+$/, "")}/cgi/search.pl`);
   url.searchParams.set("search_terms", q);
   url.searchParams.set("search_simple", "1");
   url.searchParams.set("action", "process");
   url.searchParams.set("json", "1");
-  url.searchParams.set("page_size", "12");
+  url.searchParams.set("page_size", String(pageSize));
+  url.searchParams.set("page", String(page));
   url.searchParams.set(
     "fields",
-    "code,product_name,product_name_pl,product_name_en,brands,quantity,nutriscore_grade,nova_group,image_front_small_url,image_small_url,allergens_tags,categories_tags",
+    "code,product_name,product_name_pl,product_name_en,brands,quantity,nutriscore_grade,nova_group,image_front_small_url,image_small_url,allergens_tags,categories_tags,nutriments",
   );
   url.searchParams.set("lc", lc);
 

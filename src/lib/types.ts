@@ -11,6 +11,9 @@ export type IngredientUnitCode =
   | "tsp"
   | "tbsp"
   | "cup"
+  | "pinch"
+  | "slice"
+  | "clove"
   | "pack";
 
 export type IngredientItem = {
@@ -20,6 +23,7 @@ export type IngredientItem = {
   unit_code?: IngredientUnitCode;
   unit: string;
   note?: string;
+  product_id?: string;
   off_barcode?: string;
   off_product_name?: string;
   off_nutrition_per_100g?: {
@@ -103,6 +107,8 @@ export type RecipeRecord = {
   title: string;
   subtitle: string | null;
   description: string | null;
+  description_short?: string | null;
+  description_full?: string | null;
   status: RecipeStatus;
   primary_cuisine: string | null;
   cuisines: string[];
@@ -111,6 +117,8 @@ export type RecipeRecord = {
   total_minutes: number | null;
   difficulty: string | null;
   nutrition: NutritionRecord;
+  nutrition_total?: Partial<NutritionValues>;
+  nutrition_per_serving?: Partial<NutritionValues>;
   nutrition_summary?: RecipeNutritionSummary;
   substitutions: IngredientSubstitution[];
   image_urls: string[];
@@ -123,6 +131,69 @@ export type RecipeRecord = {
   published_at: string | null;
   deleted_at?: string | null;
   deleted_by?: string | null;
+};
+
+export type FoodProductRecord = {
+  id: string;
+  source: string;
+  source_id: string;
+  barcode: string | null;
+  name_pl: string;
+  name_en: string | null;
+  brand: string | null;
+  categories: string[] | null;
+  nutriments: Record<string, unknown>;
+  kcal_100g: number | null;
+  protein_100g: number | null;
+  fat_100g: number | null;
+  carbs_100g: number | null;
+  sugar_100g: number | null;
+  fiber_100g: number | null;
+  salt_100g: number | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TagType =
+  | "diet"
+  | "cuisine"
+  | "time"
+  | "difficulty"
+  | "allergen"
+  | "goal"
+  | "meal_type"
+  | "equipment"
+  | "custom";
+
+export type TagRecord = {
+  id: string;
+  slug: string;
+  name_pl: string;
+  name_en: string | null;
+  type: TagType | string;
+  created_at: string;
+  updated_at?: string;
+};
+
+export type RecipeTagRecord = {
+  recipe_id: string;
+  tag_id: string;
+  created_at: string;
+};
+
+export type RecipeIngredientRecord = {
+  id: string;
+  recipe_id: string;
+  display_name: string;
+  product_id: string | null;
+  qty: number;
+  unit: string;
+  note: string | null;
+  sort_order: number;
+  substitutions: unknown;
+  computed: unknown;
+  created_at: string;
+  updated_at: string;
 };
 
 export type RecipeTranslationRecord = {

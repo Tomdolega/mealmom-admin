@@ -10,6 +10,9 @@ export const INGREDIENT_UNITS: Array<{ code: IngredientUnitCode; en: string; pl:
   { code: "tsp", en: "tsp", pl: "łyżeczka" },
   { code: "tbsp", en: "tbsp", pl: "łyżka" },
   { code: "cup", en: "cup", pl: "szklanka" },
+  { code: "pinch", en: "pinch", pl: "szczypta" },
+  { code: "slice", en: "slice", pl: "plaster" },
+  { code: "clove", en: "clove", pl: "ząbek" },
   { code: "pack", en: "pack", pl: "opakowanie" },
 ];
 
@@ -35,6 +38,10 @@ export function normalizeUnitCode(value: string | null | undefined): IngredientU
     łyżka: "tbsp",
     lyzka: "tbsp",
     szklanka: "cup",
+    szczypta: "pinch",
+    plaster: "slice",
+    ząbek: "clove",
+    zabek: "clove",
     opakowanie: "pack",
   };
   return aliasMap[lowered];

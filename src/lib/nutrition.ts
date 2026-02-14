@@ -55,6 +55,15 @@ export function toGrams(amountRaw: string, unitRaw: string, servingSize?: string
   if (unit === "cup" || unit === "szklanka") {
     return amount * 240;
   }
+  if (unit === "pinch" || unit === "szczypta") {
+    return amount * 0.5;
+  }
+  if (unit === "slice" || unit === "plaster") {
+    return amount * 25;
+  }
+  if (unit === "clove" || unit === "ząbek" || unit === "zabek") {
+    return amount * 5;
+  }
   if (unit === "pack" || unit === "opakowanie") {
     return servingSize ? toGrams(amountRaw, "pcs", servingSize) : null;
   }
