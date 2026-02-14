@@ -20,6 +20,14 @@ export type ProductSearchResult = {
 };
 
 export function mapFoodProductToSearchResult(product: FoodProductRecord): ProductSearchResult {
+  const categories =
+    Array.isArray(product.categories)
+      ? product.categories.map((item) => String(item))
+      : product.categories && typeof product.categories === "object"
+        ? Array.isArray((product.categories as { items?: unknown[] }).items)
+          ? ((product.categories as { items: unknown[] }).items || []).map((item) => String(item))
+          : []
+        : [];
   return {
     id: product.id,
     product_id: product.id,
@@ -28,7 +36,7 @@ export function mapFoodProductToSearchResult(product: FoodProductRecord): Produc
     barcode: product.barcode,
     name: product.name_pl || product.name_en || "Unknown product",
     brand: product.brand,
-    categories: product.categories || [],
+    categories,
     kcal_100g: product.kcal_100g,
     protein_100g: product.protein_100g,
     fat_100g: product.fat_100g,
@@ -48,6 +56,7 @@ export function offSearchItemToFoodProductUpsert(item: OffSearchItem) {
     name_en: item.name,
     brand: item.brands,
     categories: item.categories,
+    image_url: item.image_url,
     nutriments: item.nutriments_raw || {},
     kcal_100g: item.nutrition_per_100g.kcal,
     protein_100g: item.nutrition_per_100g.protein_g,

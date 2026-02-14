@@ -141,7 +141,7 @@ export type FoodProductRecord = {
   name_pl: string;
   name_en: string | null;
   brand: string | null;
-  categories: string[] | null;
+  categories: unknown;
   nutriments: Record<string, unknown>;
   kcal_100g: number | null;
   protein_100g: number | null;
@@ -150,6 +150,7 @@ export type FoodProductRecord = {
   sugar_100g: number | null;
   fiber_100g: number | null;
   salt_100g: number | null;
+  image_url?: string | null;
   created_at: string;
   updated_at: string;
 };
