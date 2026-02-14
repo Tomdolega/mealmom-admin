@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { RecipeDetailManagement } from "@/components/recipe-detail-management";
 import { RecipeForm } from "@/components/recipe-form";
 import { RecipeThumbnail } from "@/components/recipe-thumbnail";
 import { Button } from "@/components/ui/button";
@@ -8,7 +9,7 @@ import { StatusBadge } from "@/components/ui/badge";
 import { getCurrentProfileOrRedirect } from "@/lib/auth";
 import { normalizeAppSettings } from "@/lib/settings";
 import { getServerUILang, tr } from "@/lib/ui-language.server";
-import type { AppSettingsRecord, RecipeRecord } from "@/lib/types";
+import type { AppSettingsRecord, LabelRecord, RecipeRecord } from "@/lib/types";
 
 type RecipeEditProps = {
   params: Promise<{ id: string }>;
@@ -36,10 +37,12 @@ type RecipeCoreRow = Pick<
   | "created_at"
   | "updated_at"
   | "published_at"
+  | "deleted_at"
+  | "deleted_by"
 >;
 
 const RECIPE_EDIT_CORE_COLUMNS =
-  "id, translation_group_id, language, title, subtitle, status, primary_cuisine, cuisines, tags, servings, total_minutes, difficulty, ingredients, steps, created_by, updated_by, created_at, updated_at, published_at";
+  "id, translation_group_id, language, title, subtitle, status, primary_cuisine, cuisines, tags, servings, total_minutes, difficulty, ingredients, steps, created_by, updated_by, created_at, updated_at, published_at, deleted_at, deleted_by";
 
 export default async function RecipeEditPage({ params }: RecipeEditProps) {
   const [{ supabase, profile }, { id }, lang] = await Promise.all([getCurrentProfileOrRedirect(), params, getServerUILang()]);
@@ -171,6 +174,21 @@ export default async function RecipeEditPage({ params }: RecipeEditProps) {
     image_urls: translationImageMap.get(item.id) || [],
   }));
 
+  const [{ data: labels }, { data: recipeLabelLinks }] = await Promise.all([
+    supabase
+      .from("labels")
+      .select("id, name, color, created_at")
+      .order("name", { ascending: true })
+      .returns<LabelRecord[]>(),
+    supabase
+      .from("recipe_labels")
+      .select("label_id")
+      .eq("recipe_id", recipe.id)
+      .returns<Array<{ label_id: string }>>(),
+  ]);
+
+  const assignedLabelIds = (recipeLabelLinks || []).map((item) => item.label_id);
+
   const normalizedSettings = normalizeAppSettings(appSettings);
 
   return (
@@ -205,6 +223,14 @@ export default async function RecipeEditPage({ params }: RecipeEditProps) {
           ))}
         </div>
       </Card>
+
+      <RecipeDetailManagement
+        recipeId={recipe.id}
+        role={profile.role}
+        isDeleted={Boolean(recipe.deleted_at)}
+        labels={labels || []}
+        assignedLabelIds={assignedLabelIds}
+      />
 
       <RecipeForm
         mode="edit"

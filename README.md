@@ -26,6 +26,12 @@ Next.js (App Router) + Supabase admin panel for recipe entry, review workflow, p
   - Recipe content fields are read-only for reviewers
   - Enforced in both UI and DB policies/triggers
 - Dashboard quick filters, status badges, and export published pack
+- Email-like recipe management:
+  - Row selection with checkboxes (single, select all on page, shift-range)
+  - Bulk actions: move to Trash, restore, permanent delete (admin), set status, assign/remove label, export selected CSV/JSON
+  - Sorting + pagination controls in URL params
+  - Label organization (`labels` + `recipe_labels`)
+- Trash view (`/trash`) with restore and permanent delete safeguards
 - UI language switcher (EN/PL) in top navigation
 - Settings page:
   - Global app settings (admin): default/enabled languages + enabled cuisines
@@ -91,6 +97,7 @@ Run SQL files in order:
 5. `supabase/005_public_published_recipes_read.sql`
 6. `supabase/006_recipe_images_storage.sql`
 7. `supabase/007_recipes_professional_fields.sql`
+8. `supabase/008_recipe_management_soft_delete_labels.sql`
 
 In Supabase Dashboard SQL Editor, paste and run each file.
 
@@ -171,6 +178,7 @@ Import notes:
 - `/auth/callback` Supabase invite callback (code exchange)
 - `/set-password` invited user sets password
 - `/dashboard` recipes list + filters + export
+- `/trash` soft-deleted recipes (restore / permanent delete)
 - `/recipes/new` create recipe (admin/editor)
 - `/recipes/[id]` edit recipe
 - `/recipes/[id]/translations` manage translation variants
@@ -178,6 +186,18 @@ Import notes:
 - `/import` admin-only CSV/XLSX import
 - `/users` admin-only role management
   - includes invite form (email + role) that creates invite and persists role in `profiles`
+
+## Recipe Management Safety
+
+- Soft delete fields in `recipes`:
+  - `deleted_at`
+  - `deleted_by`
+- Default management list excludes trashed rows (`deleted_at is null`).
+- Trash view includes only trashed rows (`deleted_at is not null`).
+- Public anonymous read policy now requires:
+  - `status = 'published'`
+  - `deleted_at is null`
+- Permanent delete is restricted to `admin`.
 
 ## Vercel Environment + Redeploy
 
