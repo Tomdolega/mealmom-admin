@@ -26,6 +26,7 @@ function requiresAuth(pathname: string) {
     pathname.startsWith("/settings") ||
     pathname.startsWith("/users") ||
     pathname.startsWith("/import") ||
+    pathname.startsWith("/trash") ||
     pathname.startsWith("/api/admin/")
   );
 }

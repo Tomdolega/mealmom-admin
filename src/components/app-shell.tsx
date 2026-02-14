@@ -14,6 +14,7 @@ type AppShellProps = {
     settings: string;
     import: string;
     users: string;
+    trash: string;
     language: string;
     signOut: string;
     userDefault: string;
@@ -27,6 +28,7 @@ export function AppShell({ role, displayName, lang, labels, children }: AppShell
       <NavLink href="/dashboard">{labels.dashboard}</NavLink>
       {role !== "reviewer" ? <NavLink href="/recipes/new">{labels.newRecipe}</NavLink> : null}
       <NavLink href="/settings">{labels.settings}</NavLink>
+      {role !== "reviewer" ? <NavLink href="/trash">{labels.trash}</NavLink> : null}
       {role === "admin" ? <NavLink href="/import">{labels.import}</NavLink> : null}
       {role === "admin" ? <NavLink href="/users">{labels.users}</NavLink> : null}
     </>

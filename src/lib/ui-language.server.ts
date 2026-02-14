@@ -11,6 +11,7 @@ export const uiDict: Record<
       settings: string;
       import: string;
       users: string;
+      trash: string;
       language: string;
       signOut: string;
       userDefault: string;
@@ -24,6 +25,7 @@ export const uiDict: Record<
       settings: "Settings",
       import: "Import",
       users: "Users",
+      trash: "Trash",
       language: "Language",
       signOut: "Sign out",
       userDefault: "User",
@@ -36,6 +38,7 @@ export const uiDict: Record<
       settings: "Ustawienia",
       import: "Import",
       users: "Użytkownicy",
+      trash: "Kosz",
       language: "Język",
       signOut: "Wyloguj",
       userDefault: "Użytkownik",
