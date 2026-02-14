@@ -208,6 +208,7 @@ export default async function RecipeEditPage({ params }: RecipeEditProps) {
       <RecipeLanguageGroupTabs
         recipeId={recipe.id}
         currentLanguage={recipe.language}
+        currentUpdatedAt={recipe.updated_at}
         enabledLanguages={normalizedSettings.enabled_languages}
         variants={(languageVariants || []).map((item) => ({
           id: item.id,

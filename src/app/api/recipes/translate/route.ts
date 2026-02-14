@@ -6,7 +6,7 @@ import type { ProfileRole, RecipeRecord } from "@/lib/types";
 type TranslateRequest = {
   recipeId: string;
   targetLanguage: string;
-  mode?: "create_empty" | "copy_from_pl" | "auto_translate";
+  mode?: "create_empty" | "copy_from_pl" | "auto_translate" | "autofill_from_pl";
 };
 
 type RecipeForCopy = Pick<
@@ -82,18 +82,67 @@ export async function POST(request: Request) {
     .eq("language", body.targetLanguage)
     .maybeSingle<{ id: string }>();
 
-  if (existingInLanguage?.id) {
-    return NextResponse.json({ recipeId: existingInLanguage.id, mode, reused: true });
-  }
-
   const { data: plSource } = await admin
     .from("recipes")
     .select(
       "id, translation_group_id, language, title, subtitle, description, status, primary_cuisine, cuisines, tags, servings, total_minutes, difficulty, nutrition, ingredients, steps, substitutions, image_urls",
     )
     .eq("translation_group_id", baseRecipe.translation_group_id)
-    .eq("language", "pl-PL")
+    .in("language", ["pl-PL", "pl"])
+    .order("language", { ascending: true })
+    .limit(1)
     .maybeSingle<RecipeForCopy>();
+
+  if (existingInLanguage?.id && mode === "autofill_from_pl") {
+    const source = plSource || baseRecipe;
+    const { data: existingVariant, error: existingVariantError } = await admin
+      .from("recipes")
+      .select(
+        "id, title, subtitle, description, ingredients, steps, substitutions",
+      )
+      .eq("id", existingInLanguage.id)
+      .maybeSingle<Pick<RecipeForCopy, "id" | "title" | "subtitle" | "description" | "ingredients" | "steps" | "substitutions">>();
+
+    if (existingVariantError || !existingVariant) {
+      return NextResponse.json({ error: existingVariantError?.message || "Target language variant not found." }, { status: 404 });
+    }
+
+    const patch = {
+      title: existingVariant.title?.trim() ? existingVariant.title : source.title,
+      subtitle: existingVariant.subtitle?.trim() ? existingVariant.subtitle : source.subtitle,
+      description: existingVariant.description?.trim() ? existingVariant.description : source.description,
+      ingredients:
+        Array.isArray(existingVariant.ingredients) && existingVariant.ingredients.length > 0
+          ? existingVariant.ingredients
+          : source.ingredients,
+      steps:
+        Array.isArray(existingVariant.steps) && existingVariant.steps.length > 0
+          ? existingVariant.steps
+          : source.steps,
+      substitutions:
+        Array.isArray(existingVariant.substitutions) && existingVariant.substitutions.length > 0
+          ? existingVariant.substitutions
+          : source.substitutions,
+      status: "draft",
+      updated_by: session.user.id,
+    };
+
+    const { error: updateError } = await admin.from("recipes").update(patch).eq("id", existingInLanguage.id);
+    if (updateError) {
+      return NextResponse.json({ error: updateError.message }, { status: 400 });
+    }
+
+    return NextResponse.json({
+      recipeId: existingInLanguage.id,
+      mode,
+      copiedFromLanguage: source.language,
+      autoTranslateReady: Boolean(process.env.OPENAI_API_KEY || process.env.DEEPL_API_KEY),
+    });
+  }
+
+  if (existingInLanguage?.id) {
+    return NextResponse.json({ recipeId: existingInLanguage.id, mode, reused: true });
+  }
 
   const source = plSource || baseRecipe;
 

@@ -54,6 +54,9 @@ OFF_BASE_URL=https://world.openfoodfacts.org
 OFF_USER_AGENT="MealMom/1.0 (tom@tomdolega.com)"
 OPENAI_API_KEY=optional_for_translation_generation
 DEEPL_API_KEY=optional_for_translation_generation
+TRANSLATE_PROVIDER=none
+TRANSLATE_BASE_URL=https://libretranslate.com
+TRANSLATE_API_KEY=optional_for_libretranslate_instance
 ```
 
 If these are missing, `/login` shows a friendly setup message instead of crashing.
@@ -238,6 +241,16 @@ Import notes:
   - server route: `/api/recipes/translations/generate`
 - Backfill migration creates translation rows from existing `recipes` content.
 - `recipes.language` remains in schema for backward compatibility, but admin language behavior is driven by `recipe_translations`.
+- Manual translation from PL in recipe tabs:
+  - non-PL tabs provide:
+    - `Copy PL into this language`
+    - `Translate from PL`
+  - route: `POST /api/translate`
+  - provider is server-only and controlled by `TRANSLATE_PROVIDER`:
+    - `none` (default copy-only fallback)
+    - `libretranslate` (requires `TRANSLATE_BASE_URL`, optional `TRANSLATE_API_KEY`)
+    - `mymemory` (free provider, no key)
+  - translation runs only on button click (no auto translation on tab switch)
 
 Feed behavior (single config):
 - `ALLOW_FEED_LOCALE_FALLBACK` and `DEFAULT_TRANSLATION_LOCALE` in `/src/lib/translation-config.ts`
@@ -382,6 +395,36 @@ Search endpoint used by editor autocomplete:
 Behavior:
 - searches local `public.products` first
 - if few/no results (or `fetch_off=1`), fetches OpenFoodFacts and upserts cache
+
+### OFF cache seed script
+
+Script: `scripts/seed-off-cache.mjs`
+
+Options:
+- `--country` (default `Poland`)
+- `--lang` (default `pl`)
+- `--page-size` (default `100`, clamped to `100`)
+- `--pages` (default `1`)
+- `--delay-ms` (default `250`)
+- `--max` (optional hard cap on total fetched)
+- `--dry-run` (fetch/log only, no Supabase writes)
+
+Examples:
+
+Seed 100 products:
+```bash
+node scripts/seed-off-cache.mjs --country Poland --lang pl --page-size 100 --pages 1
+```
+
+Seed ~10,000 products (100 pages x 100):
+```bash
+node scripts/seed-off-cache.mjs --country Poland --lang pl --page-size 100 --pages 100 --delay-ms 250
+```
+
+Dry run:
+```bash
+node scripts/seed-off-cache.mjs --country Poland --lang pl --page-size 100 --pages 3 --dry-run
+```
 
 ## Manual Invite Test (Different Device)
 

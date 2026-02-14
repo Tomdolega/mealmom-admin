@@ -500,15 +500,35 @@ export function RecipeForm({
 
       const supabase = createClient();
 
-      const result =
-        mode === "create"
-          ? await supabase.from("recipes").insert(payload).select("id, updated_at").single<{ id: string; updated_at: string }>()
-          : await supabase
-              .from("recipes")
-              .update(payload)
-              .eq("id", recipe!.id)
-              .select("id, updated_at")
-              .single<{ id: string; updated_at: string }>();
+      let result:
+        | {
+            data: { id: string; updated_at: string } | null;
+            error: { message: string; details: string | null; hint: string | null; code: string } | null;
+          }
+        | {
+            data: { id: string; updated_at: string } | null;
+            error: {
+              message: string;
+              details: string | null;
+              hint: string | null;
+              code: string;
+            } | null;
+          };
+
+      if (mode === "create") {
+        result = await supabase.from("recipes").insert(payload).select("id, updated_at").single<{ id: string; updated_at: string }>();
+      } else {
+        // Keep translation group immutable on edit; update only the current language row by id.
+        // Language switching is handled by language-group tabs, not by in-place language mutation.
+        const updatePayload = { ...payload };
+        delete updatePayload.translation_group_id;
+        result = await supabase
+          .from("recipes")
+          .update(updatePayload)
+          .eq("id", recipe!.id)
+          .select("id, updated_at")
+          .single<{ id: string; updated_at: string }>();
+      }
 
       if (kind === "autosave") {
         setIsAutoSaving(false);
@@ -530,6 +550,13 @@ export function RecipeForm({
         setToast({ type: "error", message: fullErrorMessage });
         return;
       }
+      if (!result.data) {
+        const noDataMessage = tt("Recipe save failed: no data returned.", "Nie udało się zapisać przepisu: brak danych odpowiedzi.");
+        setError(noDataMessage);
+        setToast({ type: "error", message: noDataMessage });
+        return;
+      }
+      const savedRecipeId = result.data.id;
 
       const normalizedServingsForCalc =
         typeof payload.servings === "number" && Number.isFinite(payload.servings) && payload.servings > 0
@@ -539,7 +566,7 @@ export function RecipeForm({
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          recipe_id: result.data.id,
+          recipe_id: savedRecipeId,
           servings: normalizedServingsForCalc,
           ingredients: payload.ingredients.map((ingredient) => ({
             product_id: ingredient.product_id || null,
@@ -553,7 +580,7 @@ export function RecipeForm({
       if (!calcResponse.ok) {
         const calcPayload = (await calcResponse.json().catch(() => ({}))) as { error?: string };
         console.warn("Recipe nutrition calc route failed during save", {
-          recipeId: result.data.id,
+          recipeId: savedRecipeId,
           message: calcPayload.error || "Unknown nutrition calc failure",
         });
       }
@@ -566,7 +593,7 @@ export function RecipeForm({
             : "draft";
       const translationUpsert = await supabase.from("recipe_translations").upsert(
         {
-          recipe_id: result.data.id,
+          recipe_id: savedRecipeId,
           locale: payload.language,
           title: payload.title,
           short_phrase: payload.subtitle,
@@ -585,7 +612,7 @@ export function RecipeForm({
           code: translationUpsert.error.code,
           details: translationUpsert.error.details,
           hint: translationUpsert.error.hint,
-          recipeId: result.data.id,
+          recipeId: savedRecipeId,
           locale: payload.language,
         });
       }
@@ -619,14 +646,14 @@ export function RecipeForm({
         });
       }
       const tagIds = (tagsLookup.data || []).map((item) => item.id);
-      const clearRecipeTags = await supabase.from("recipe_tags").delete().eq("recipe_id", result.data.id);
+      const clearRecipeTags = await supabase.from("recipe_tags").delete().eq("recipe_id", savedRecipeId);
       if (clearRecipeTags.error) {
         console.warn("Recipe tag cleanup failed during recipe save", {
           message: clearRecipeTags.error.message,
           code: clearRecipeTags.error.code,
         });
       } else if (tagIds.length > 0) {
-        const recipeTagRows = tagIds.map((tagId) => ({ recipe_id: result.data.id, tag_id: tagId }));
+        const recipeTagRows = tagIds.map((tagId) => ({ recipe_id: savedRecipeId, tag_id: tagId }));
         const writeRecipeTags = await supabase.from("recipe_tags").upsert(recipeTagRows, {
           onConflict: "recipe_id,tag_id",
         });
@@ -644,7 +671,7 @@ export function RecipeForm({
         const matchedSubstitutions = normalizedSubstitutions.find((item) => item.ingredient_key === slotKey);
         const grams = toGrams(ingredient.amount, ingredient.unit_code || ingredient.unit);
         return {
-          recipe_id: result.data.id,
+          recipe_id: savedRecipeId,
           display_name: ingredient.name || ingredient.off_product_name || `Ingredient ${index + 1}`,
           name_override: ingredient.name || null,
           product_id: ingredient.product_id || null,
@@ -662,7 +689,7 @@ export function RecipeForm({
       const clearRecipeIngredients = await supabase
         .from("recipe_ingredients")
         .delete()
-        .eq("recipe_id", result.data.id);
+        .eq("recipe_id", savedRecipeId);
       if (clearRecipeIngredients.error) {
         console.warn("Recipe ingredient cleanup failed during recipe save", {
           message: clearRecipeIngredients.error.message,
@@ -685,13 +712,13 @@ export function RecipeForm({
           .select(
             "id, translation_group_id, language, title, subtitle, description, status, primary_cuisine, cuisines, tags, servings, total_minutes, difficulty, nutrition, nutrition_summary, substitutions, image_urls, ingredients, steps, created_by, updated_by, created_at, updated_at, published_at",
           )
-          .eq("id", result.data.id)
+          .eq("id", savedRecipeId)
           .maybeSingle<RecipeRecord>();
 
         if (refetch.error) {
           console.error("Recipe refetch after save failed", {
             error: refetch.error,
-            recipeId: result.data.id,
+            recipeId: savedRecipeId,
           });
         } else if (refetch.data) {
           refreshedRecipe = refetch.data;
@@ -767,7 +794,7 @@ export function RecipeForm({
       }
 
       if (mode === "create") {
-        router.push(`/recipes/${result.data.id}`);
+        router.push(`/recipes/${savedRecipeId}`);
         router.refresh();
         return;
       }
