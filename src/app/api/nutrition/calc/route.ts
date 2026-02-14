@@ -111,22 +111,16 @@ export async function POST(request: Request) {
 
   const { data: products } = ingredientProductIds.length
     ? await admin
-        .from("food_products")
-        .select("id, kcal_100g, protein_100g, fat_100g, carbs_100g, sugar_100g, fiber_100g, salt_100g")
+        .from("products")
+        .select("id, nutriments")
         .in("id", ingredientProductIds)
         .returns<
           Array<{
             id: string;
-            kcal_100g: number | null;
-            protein_100g: number | null;
-            fat_100g: number | null;
-            carbs_100g: number | null;
-            sugar_100g: number | null;
-            fiber_100g: number | null;
-            salt_100g: number | null;
+            nutriments: Record<string, unknown> | null;
           }>
         >()
-    : { data: [] as Array<{ id: string; kcal_100g: number | null; protein_100g: number | null; fat_100g: number | null; carbs_100g: number | null; sugar_100g: number | null; fiber_100g: number | null; salt_100g: number | null }> };
+    : { data: [] as Array<{ id: string; nutriments: Record<string, unknown> | null }> };
 
   const productMap = new Map((products || []).map((item) => [item.id, item]));
 
@@ -139,15 +133,23 @@ export async function POST(request: Request) {
     let computed = zero();
     if (ingredient.product_id && productMap.has(String(ingredient.product_id))) {
       const p = productMap.get(String(ingredient.product_id))!;
+      const nutriments = p.nutriments || {};
+      const kcal100 = Number(nutriments["energy-kcal_100g"] || nutriments["kcal_100g"] || 0);
+      const protein100 = Number(nutriments["proteins_100g"] || 0);
+      const fat100 = Number(nutriments["fat_100g"] || 0);
+      const carbs100 = Number(nutriments["carbohydrates_100g"] || 0);
+      const sugar100 = Number(nutriments["sugars_100g"] || 0);
+      const fiber100 = Number(nutriments["fiber_100g"] || 0);
+      const salt100 = Number(nutriments["salt_100g"] || 0);
       const factor = grams / 100;
       computed = {
-        kcal: round((p.kcal_100g || 0) * factor),
-        protein_g: round((p.protein_100g || 0) * factor),
-        fat_g: round((p.fat_100g || 0) * factor),
-        carbs_g: round((p.carbs_100g || 0) * factor),
-        sugar_g: round((p.sugar_100g || 0) * factor),
-        fiber_g: round((p.fiber_100g || 0) * factor),
-        salt_g: round((p.salt_100g || 0) * factor),
+        kcal: round(kcal100 * factor),
+        protein_g: round(protein100 * factor),
+        fat_g: round(fat100 * factor),
+        carbs_g: round(carbs100 * factor),
+        sugar_g: round(sugar100 * factor),
+        fiber_g: round(fiber100 * factor),
+        salt_g: round(salt100 * factor),
       };
     } else if (ingredient.computed) {
       computed = {

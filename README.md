@@ -108,6 +108,7 @@ Run SQL files in order:
 11. `supabase/011_catalog_tags_recipe_ingredients.sql`
 12. `supabase/012_professional_recipe_system_alignment.sql`
 13. `supabase/013_tags_schema_cache_safety.sql`
+14. `supabase/014_products_units_compat_layer.sql`
 
 In Supabase Dashboard SQL Editor, paste and run each file.
 
@@ -330,6 +331,15 @@ Feed behavior (single config):
   - `recipes.translation_group_id` exists and is indexed
   - compatibility for environments where older migrations were skipped
 
+## Products + Units Compatibility Layer (014)
+
+- `supabase/014_products_units_compat_layer.sql` adds:
+  - `public.products` cache table (OpenFoodFacts-compatible)
+  - `public.units` dictionary table (dropdown source of truth)
+  - additive columns on `public.recipe_ingredients`: `name_override`, `quantity`, `unit_code`
+  - backfill from `food_products` (when present) without deleting old tables
+  - RLS + indexes for products/units
+
 ## Smoke Test Checklist
 
 1. Apply SQL up to `011` in Supabase.
@@ -357,6 +367,21 @@ For both admin and consumer reads to use the same Supabase project:
    - `SUPABASE_SERVICE_ROLE_KEY` (server only, never exposed to client)
 2. Redeploy the latest commit.
 3. Verify invite flow by sending test invite from `/users`.
+
+## Product Import Guide
+
+Run import (server-side protected route, admin/editor only):
+
+```bash
+curl -X POST \"https://joanka.cafe/api/admin/products/import\" \\\n+  -H \"content-type: application/json\" \\\n+  -d '{\"locale\":\"pl\",\"pagesPerTerm\":2,\"pageSize\":40}'\n+```
+
+Search endpoint used by editor autocomplete:
+
+`GET /api/products/search?q=...&lang=pl`
+
+Behavior:
+- searches local `public.products` first
+- if few/no results (or `fetch_off=1`), fetches OpenFoodFacts and upserts cache
 
 ## Manual Invite Test (Different Device)
 
