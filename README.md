@@ -106,8 +106,18 @@ Run SQL files in order:
 9. `supabase/009_recipe_translations.sql`
 10. `supabase/010_openfoodfacts_cache_and_nutrition.sql`
 11. `supabase/011_catalog_tags_recipe_ingredients.sql`
+12. `supabase/012_professional_recipe_system_alignment.sql`
+13. `supabase/013_tags_schema_cache_safety.sql`
 
 In Supabase Dashboard SQL Editor, paste and run each file.
+
+If admin UI shows `Could not find the table 'public.tags' in the schema cache`:
+1. Confirm migration `supabase/013_tags_schema_cache_safety.sql` was executed.
+2. Reload PostgREST schema cache:
+
+```sql
+NOTIFY pgrst, 'reload schema';
+```
 
 ## Settings Behavior
 
@@ -313,19 +323,28 @@ Feed behavior (single config):
   - `nutrition_calc_cache` table + RLS + trigger/index
   - additional index/policy safety alignment
 
+## Schema Cache Safety (013)
+
+- `supabase/013_tags_schema_cache_safety.sql` ensures:
+  - `public.tags` and `public.recipe_tags` exist with indexes + RLS
+  - `recipes.translation_group_id` exists and is indexed
+  - compatibility for environments where older migrations were skipped
+
 ## Smoke Test Checklist
 
 1. Apply SQL up to `011` in Supabase.
 2. Apply `supabase/012_professional_recipe_system_alignment.sql`.
-3. Open `/recipes/new`, fill basics, verify checklist updates live.
-4. Add ingredient -> `Link to product` -> local search -> optional OFF search.
-5. Save recipe and verify:
+3. Apply `supabase/013_tags_schema_cache_safety.sql` and run `NOTIFY pgrst, 'reload schema';`.
+4. Open `/recipes/new`, fill basics, verify checklist updates live.
+5. Add ingredient -> `Link to product` -> local search -> optional OFF search.
+6. Save recipe and verify:
    - `recipes` updated
    - `recipe_ingredients` rows created
    - `tags`/`recipe_tags` synced
    - `nutrition_total` + `nutrition_per_serving` updated by `/api/nutrition/calc`
-6. Try status `published` without image and confirm publish save is blocked.
-7. Call `POST /api/products/off-seed` and verify `food_products` growth.
+7. Try status `published` without image and confirm publish save is blocked.
+8. Open `/recipes/[id]` and switch language via tabs (not dropdown), create new language and test `Copy from PL`.
+9. Call `POST /api/products/off-seed` and verify `food_products` growth.
 
 ## Vercel Environment + Redeploy
 

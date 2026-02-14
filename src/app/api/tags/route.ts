@@ -54,7 +54,11 @@ export async function GET(request: NextRequest) {
   const { data, error } = await query.returns<TagRecord[]>();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    const schemaCacheHint =
+      error.message.includes("schema cache") || error.message.includes("public.tags")
+        ? "Table public.tags is missing from PostgREST schema cache. Run latest SQL migration and reload schema (NOTIFY pgrst, 'reload schema')."
+        : undefined;
+    return NextResponse.json({ error: schemaCacheHint || error.message }, { status: 400 });
   }
 
   return NextResponse.json({ tags: data || [] });
@@ -98,7 +102,11 @@ export async function POST(request: NextRequest) {
     .single<TagRecord>();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    const schemaCacheHint =
+      error.message.includes("schema cache") || error.message.includes("public.tags")
+        ? "Table public.tags is missing from PostgREST schema cache. Run latest SQL migration and reload schema (NOTIFY pgrst, 'reload schema')."
+        : undefined;
+    return NextResponse.json({ error: schemaCacheHint || error.message }, { status: 400 });
   }
 
   return NextResponse.json({ tag: data });
