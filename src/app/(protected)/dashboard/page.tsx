@@ -56,7 +56,7 @@ async function getStatusCount(
   return count || 0;
 }
 
-const allowedSortColumns = new Set(["updated_at", "created_at", "title", "status", "language"]);
+const allowedSortColumns = new Set(["updated_at", "created_at", "title", "status"]);
 const allowedPageSizes = new Set([25, 50, 100]);
 
 export default async function DashboardPage({ searchParams }: DashboardProps) {
@@ -90,17 +90,24 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
     getStatusCount(supabase, "published"),
     supabase
       .from("recipes")
-      .select("id, title, status, language, updated_at, image_urls")
+      .select("id, title, status, updated_at, image_urls")
       .is("deleted_at", null)
       .order("updated_at", { ascending: false })
       .limit(6)
-      .returns<Array<Pick<RecipeRecord, "id" | "title" | "status" | "language" | "updated_at" | "image_urls">>>(),
+      .returns<Array<Pick<RecipeRecord, "id" | "title" | "status" | "updated_at" | "image_urls">>>(),
   ]);
 
   const normalizedSettings = normalizeAppSettings(appSettingsRes.data);
   const enabledLanguages = normalizedSettings.enabled_languages;
   const recentRecipes = recentRes.data || [];
   const labels = labelsRes.data || [];
+  const defaultLocale = normalizedSettings.default_language.includes("-")
+    ? normalizedSettings.default_language
+    : normalizedSettings.default_language === "pl"
+      ? "pl-PL"
+      : normalizedSettings.default_language === "en"
+        ? "en-GB"
+        : normalizedSettings.default_language;
 
   const labelRecipeIds = new Set<string>();
   if (params.label_id) {
@@ -115,10 +122,26 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
     }
   }
 
+  const translationRecipeIds = new Set<string>();
+  if (params.language || params.search) {
+    let translationQuery = supabase.from("recipe_translations").select("recipe_id");
+    if (params.language) translationQuery = translationQuery.eq("locale", params.language);
+    if (params.search) translationQuery = translationQuery.ilike("title", `%${params.search}%`);
+    const { data: translationLinks } = await translationQuery.returns<Array<{ recipe_id: string }>>();
+    for (const item of translationLinks || []) {
+      translationRecipeIds.add(item.recipe_id);
+    }
+  }
+
   const listDebugId = `dash-list-${session.user.id.slice(0, 8)}-${params.status || "all"}-${params.language || "all"}`;
 
   let countQuery = supabase.from("recipes").select("id", { count: "exact", head: true });
   countQuery = applyDashboardRecipeListFilters(countQuery, params, session.user.id, "active");
+  if ((params.language || params.search) && translationRecipeIds.size > 0) {
+    countQuery = countQuery.in("id", [...translationRecipeIds]);
+  } else if ((params.language || params.search) && translationRecipeIds.size === 0) {
+    countQuery = countQuery.eq("id", "00000000-0000-0000-0000-000000000000");
+  }
   if (params.label_id && labelRecipeIds.size > 0) {
     countQuery = countQuery.in("id", [...labelRecipeIds]);
   } else if (params.label_id && labelRecipeIds.size === 0) {
@@ -131,6 +154,11 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
     .order(sortColumn, { ascending: sortAsc })
     .range(from, to);
   listQuery = applyDashboardRecipeListFilters(listQuery, params, session.user.id, "active");
+  if ((params.language || params.search) && translationRecipeIds.size > 0) {
+    listQuery = listQuery.in("id", [...translationRecipeIds]);
+  } else if ((params.language || params.search) && translationRecipeIds.size === 0) {
+    listQuery = listQuery.eq("id", "00000000-0000-0000-0000-000000000000");
+  }
   if (params.label_id && labelRecipeIds.size > 0) {
     listQuery = listQuery.in("id", [...labelRecipeIds]);
   } else if (params.label_id && labelRecipeIds.size === 0) {
@@ -155,7 +183,7 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
   const recipeIds = (recipes || []).map((item) => item.id);
   const labelMap = new Map<string, LabelRecord[]>();
   if (recipeIds.length > 0) {
-    const [{ data: recipeLabelLinks }, { data: recipeMeta }] = await Promise.all([
+    const [{ data: recipeLabelLinks }, { data: recipeMeta }, { data: translationRows }] = await Promise.all([
       supabase
         .from("recipe_labels")
         .select("recipe_id, label_id")
@@ -166,12 +194,25 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
         .select("id, image_urls")
         .in("id", recipeIds)
         .returns<Array<{ id: string; image_urls: string[] | null }>>(),
+      supabase
+        .from("recipe_translations")
+        .select("recipe_id, locale, title, translation_status")
+        .in("recipe_id", recipeIds)
+        .returns<Array<{ recipe_id: string; locale: string; title: string | null; translation_status: string }>>(),
     ]);
 
     const imageMap = new Map<string, string[]>();
     for (const item of recipeMeta || []) imageMap.set(item.id, item.image_urls || []);
 
     const labelsById = new Map(labels.map((item) => [item.id, item]));
+    const translationsByRecipe = new Map<
+      string,
+      Array<{ recipe_id: string; locale: string; title: string | null; translation_status: string }>
+    >();
+    for (const row of translationRows || []) {
+      const current = translationsByRecipe.get(row.recipe_id) || [];
+      translationsByRecipe.set(row.recipe_id, [...current, row]);
+    }
     for (const item of recipeLabelLinks || []) {
       const next = labelMap.get(item.recipe_id) || [];
       const label = labelsById.get(item.label_id);
@@ -189,19 +230,25 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
         if (params.hasImage === "1" && item.image_urls.length === 0) return false;
         return true;
       })
-      .map((item) => ({
-        id: item.id,
-        title: item.title,
-        status: item.status,
-        language: item.language,
-        updated_at: item.updated_at,
-        created_at: item.created_at,
-        deleted_at: item.deleted_at,
-        deleted_by: item.deleted_by,
-        primary_cuisine: item.primary_cuisine,
-        image_urls: item.image_urls,
-        labels: item.labels,
-      }));
+      .map((item) => {
+        const preferredTranslation =
+          (translationsByRecipe.get(item.id) || []).find((row) => row.locale === params.language) ||
+          (translationsByRecipe.get(item.id) || []).find((row) => row.locale === defaultLocale) ||
+          (translationsByRecipe.get(item.id) || [])[0];
+        return {
+          id: item.id,
+          title: preferredTranslation?.title || item.title,
+          status: item.status,
+          language: preferredTranslation?.locale || "—",
+          updated_at: item.updated_at,
+          created_at: item.created_at,
+          deleted_at: item.deleted_at,
+          deleted_by: item.deleted_by,
+          primary_cuisine: item.primary_cuisine,
+          image_urls: item.image_urls,
+          labels: item.labels,
+        };
+      });
 
     const activeParams = new URLSearchParams();
     if (params.status) activeParams.set("status", params.status);
@@ -267,7 +314,7 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
                     <span className="flex min-w-0 items-center gap-2">
                       <RecipeThumbnail imageUrl={item.image_urls?.[0] || null} title={item.title} size="sm" />
                       <span className="truncate text-sm text-slate-700">
-                        {item.title} <span className="text-slate-400">· {item.language}</span>
+                        {item.title}
                       </span>
                     </span>
                     <span className="text-xs text-slate-500">{new Date(item.updated_at).toLocaleString()}</span>

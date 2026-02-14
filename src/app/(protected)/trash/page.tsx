@@ -22,7 +22,7 @@ type TrashPageProps = {
   }>;
 };
 
-const allowedSortColumns = new Set(["updated_at", "created_at", "title", "status", "language", "deleted_at"]);
+const allowedSortColumns = new Set(["updated_at", "created_at", "title", "status", "deleted_at"]);
 const allowedPageSizes = new Set([25, 50, 100]);
 
 export default async function TrashPage({ searchParams }: TrashPageProps) {
@@ -60,10 +60,20 @@ export default async function TrashPage({ searchParams }: TrashPageProps) {
   ]);
 
   const labelRecipeIds = new Set((labelLinks || []).map((item) => item.recipe_id));
+  const translationRecipeIds = new Set<string>();
+  if (params.language || params.search) {
+    let translationQuery = supabase.from("recipe_translations").select("recipe_id");
+    if (params.language) translationQuery = translationQuery.eq("locale", params.language);
+    if (params.search) translationQuery = translationQuery.ilike("title", `%${params.search}%`);
+    const { data: translationLinks } = await translationQuery.returns<Array<{ recipe_id: string }>>();
+    for (const item of translationLinks || []) translationRecipeIds.add(item.recipe_id);
+  }
   const debugId = `trash-list-${session.user.id.slice(0, 8)}-${params.status || "all"}-${params.language || "all"}`;
 
   let countQuery = supabase.from("recipes").select("id", { count: "exact", head: true });
   countQuery = applyDashboardRecipeListFilters(countQuery, params, session.user.id, "trash");
+  if ((params.language || params.search) && translationRecipeIds.size > 0) countQuery = countQuery.in("id", [...translationRecipeIds]);
+  else if ((params.language || params.search) && translationRecipeIds.size === 0) countQuery = countQuery.eq("id", "00000000-0000-0000-0000-000000000000");
   if (params.label_id && labelRecipeIds.size > 0) countQuery = countQuery.in("id", [...labelRecipeIds]);
   else if (params.label_id && labelRecipeIds.size === 0) countQuery = countQuery.eq("id", "00000000-0000-0000-0000-000000000000");
 
@@ -73,6 +83,8 @@ export default async function TrashPage({ searchParams }: TrashPageProps) {
     .order(sortColumn, { ascending: sortAsc })
     .range(from, to);
   listQuery = applyDashboardRecipeListFilters(listQuery, params, session.user.id, "trash");
+  if ((params.language || params.search) && translationRecipeIds.size > 0) listQuery = listQuery.in("id", [...translationRecipeIds]);
+  else if ((params.language || params.search) && translationRecipeIds.size === 0) listQuery = listQuery.eq("id", "00000000-0000-0000-0000-000000000000");
   if (params.label_id && labelRecipeIds.size > 0) listQuery = listQuery.in("id", [...labelRecipeIds]);
   else if (params.label_id && labelRecipeIds.size === 0) listQuery = listQuery.eq("id", "00000000-0000-0000-0000-000000000000");
 
@@ -91,7 +103,7 @@ export default async function TrashPage({ searchParams }: TrashPageProps) {
   }
 
   const recipeIds = (rows || []).map((item) => item.id);
-  const [metaRes, recipeLabelRes] = recipeIds.length
+  const [metaRes, recipeLabelRes, translationRes] = recipeIds.length
     ? await Promise.all([
         supabase
           .from("recipes")
@@ -103,31 +115,50 @@ export default async function TrashPage({ searchParams }: TrashPageProps) {
           .select("recipe_id, label_id")
           .in("recipe_id", recipeIds)
           .returns<Array<{ recipe_id: string; label_id: string }>>(),
+        supabase
+          .from("recipe_translations")
+          .select("recipe_id, locale, title")
+          .in("recipe_id", recipeIds)
+          .returns<Array<{ recipe_id: string; locale: string; title: string | null }>>(),
       ])
-    : [{ data: [] as Array<{ id: string; image_urls: string[] | null }> }, { data: [] as Array<{ recipe_id: string; label_id: string }> }];
+    : [
+        { data: [] as Array<{ id: string; image_urls: string[] | null }> },
+        { data: [] as Array<{ recipe_id: string; label_id: string }> },
+        { data: [] as Array<{ recipe_id: string; locale: string; title: string | null }> },
+      ];
 
   const imageMap = new Map<string, string[]>((metaRes.data || []).map((item) => [item.id, item.image_urls || []]));
   const labelsById = new Map((labels || []).map((item) => [item.id, item]));
   const labelMap = new Map<string, LabelRecord[]>();
+  const translationsByRecipe = new Map<string, Array<{ recipe_id: string; locale: string; title: string | null }>>();
+  for (const row of translationRes.data || []) {
+    const current = translationsByRecipe.get(row.recipe_id) || [];
+    translationsByRecipe.set(row.recipe_id, [...current, row]);
+  }
   for (const item of recipeLabelRes.data || []) {
     const current = labelMap.get(item.recipe_id) || [];
     const label = labelsById.get(item.label_id);
     if (label) labelMap.set(item.recipe_id, [...current, label]);
   }
 
-  const finalRows = (rows || []).map((row) => ({
-    id: row.id,
-    title: row.title,
-    status: row.status,
-    language: row.language,
-    updated_at: row.updated_at,
-    created_at: row.created_at,
-    deleted_at: row.deleted_at,
-    deleted_by: row.deleted_by,
-    primary_cuisine: row.primary_cuisine,
-    image_urls: imageMap.get(row.id) || [],
-    labels: labelMap.get(row.id) || [],
-  }));
+  const finalRows = (rows || []).map((row) => {
+    const preferredTranslation =
+      (translationsByRecipe.get(row.id) || []).find((item) => item.locale === params.language) ||
+      (translationsByRecipe.get(row.id) || [])[0];
+    return {
+      id: row.id,
+      title: preferredTranslation?.title || row.title,
+      status: row.status,
+      language: preferredTranslation?.locale || "—",
+      updated_at: row.updated_at,
+      created_at: row.created_at,
+      deleted_at: row.deleted_at,
+      deleted_by: row.deleted_by,
+      primary_cuisine: row.primary_cuisine,
+      image_urls: imageMap.get(row.id) || [],
+      labels: labelMap.get(row.id) || [],
+    };
+  });
 
   return (
     <div className="space-y-5">

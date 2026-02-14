@@ -14,7 +14,6 @@ type DashboardQueryParams = {
 export type DashboardRecipeListRow = {
   id: string;
   translation_group_id: string;
-  language: string;
   title: string;
   status: RecipeStatus;
   primary_cuisine: string | null;
@@ -28,7 +27,7 @@ export type DashboardRecipeListRow = {
 
 // Keep dashboard list intentionally flat and schema-stable (no joins, no optional migrated columns).
 export const DASHBOARD_RECIPE_LIST_COLUMNS =
-  "id, title, status, language, created_at, updated_at, translation_group_id, created_by, primary_cuisine, cuisines, deleted_at, deleted_by";
+  "id, title, status, created_at, updated_at, translation_group_id, created_by, primary_cuisine, cuisines, deleted_at, deleted_by";
 
 function buildCuisineOrFilter(cuisine: string) {
   const escaped = cuisine.replaceAll('"', '\\"');
@@ -54,8 +53,6 @@ export function applyDashboardRecipeListFilters<T extends DashboardFilterQuery<T
   if (view === "trash") nextQuery = nextQuery.not("deleted_at", "is", "null");
   else nextQuery = nextQuery.filter("deleted_at", "is", "null");
   if (params.status) nextQuery = nextQuery.eq("status", params.status);
-  if (params.language) nextQuery = nextQuery.eq("language", params.language);
-  if (params.search) nextQuery = nextQuery.ilike("title", `%${params.search}%`);
   if (params.mine === "1") {
     nextQuery = nextQuery.eq("created_by", userId);
     nextQuery = nextQuery.eq("status", "draft");

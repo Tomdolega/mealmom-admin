@@ -29,7 +29,6 @@ const sortOptions = [
   { value: "title.asc", en: "Title A-Z", pl: "Tytuł A-Z" },
   { value: "title.desc", en: "Title Z-A", pl: "Tytuł Z-A" },
   { value: "status.asc", en: "Status", pl: "Status" },
-  { value: "language.asc", en: "Language", pl: "Język" },
 ];
 
 export function RecipeManagementPanel({

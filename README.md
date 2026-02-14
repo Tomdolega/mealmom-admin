@@ -98,6 +98,7 @@ Run SQL files in order:
 6. `supabase/006_recipe_images_storage.sql`
 7. `supabase/007_recipes_professional_fields.sql`
 8. `supabase/008_recipe_management_soft_delete_labels.sql`
+9. `supabase/009_recipe_translations.sql`
 
 In Supabase Dashboard SQL Editor, paste and run each file.
 
@@ -198,6 +199,34 @@ Import notes:
   - `status = 'published'`
   - `deleted_at is null`
 - Permanent delete is restricted to `admin`.
+
+## Multilingual Recipe Model
+
+- New table: `recipe_translations` (`recipe_id`, `locale`, translatable fields, `translation_status`).
+- Admin recipe edit now includes per-language tabs:
+  - title
+  - short phrase
+  - Joanna says
+  - ingredients
+  - steps
+  - tips
+  - substitutions
+  - translation status
+- Add language flow:
+  - create empty translation
+  - prefill by copying selected source locale (default source: `pl-PL`)
+- Generate translation flow:
+  - available when `OPENAI_API_KEY` or `DEEPL_API_KEY` is configured
+  - server route: `/api/recipes/translations/generate`
+- Backfill migration creates translation rows from existing `recipes` content.
+- `recipes.language` remains in schema for backward compatibility, but admin language behavior is driven by `recipe_translations`.
+
+Feed behavior (single config):
+- `ALLOW_FEED_LOCALE_FALLBACK` and `DEFAULT_TRANSLATION_LOCALE` in `/src/lib/translation-config.ts`
+- Published feed returns:
+  - recipes with `deleted_at is null` and `status='published'`
+  - translation for requested locale with `translation_status='published'`
+  - optional fallback to default locale (marked as fallback in response)
 
 ## Vercel Environment + Redeploy
 

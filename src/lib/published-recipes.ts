@@ -1,13 +1,15 @@
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { hasSupabaseEnv, supabaseAnonKey, supabaseUrl } from "@/lib/supabase/env";
+import { ALLOW_FEED_LOCALE_FALLBACK, DEFAULT_TRANSLATION_LOCALE } from "@/lib/translation-config";
 
 export type PublishedRecipeRow = {
   id: string;
   title: string;
   primary_cuisine: string | null;
-  language: string;
+  locale: string;
+  requested_locale: string;
+  is_fallback: boolean;
   updated_at: string;
-  status: "published";
 };
 
 export type PublishedRecipesResult = {
@@ -16,7 +18,7 @@ export type PublishedRecipesResult = {
 };
 
 type GetPublishedRecipesParams = {
-  language?: string;
+  locale?: string;
 };
 
 export function getSupabaseUrlHost() {
@@ -29,7 +31,7 @@ export function getSupabaseUrlHost() {
 }
 
 export async function getPublishedRecipes({
-  language,
+  locale = DEFAULT_TRANSLATION_LOCALE,
 }: GetPublishedRecipesParams = {}): Promise<PublishedRecipesResult> {
   if (!hasSupabaseEnv()) {
     return {
@@ -39,18 +41,16 @@ export async function getPublishedRecipes({
   }
 
   const client = createSupabaseClient(supabaseUrl!, supabaseAnonKey!);
-  let query = client
+  const baseQuery = client
     .from("recipes")
-    .select("id, title, primary_cuisine, language, updated_at, status")
+    .select("id, primary_cuisine, updated_at, deleted_at")
     .eq("status", "published")
+    .is("deleted_at", null)
     .order("updated_at", { ascending: false })
     .limit(50);
-
-  if (language) {
-    query = query.eq("language", language);
-  }
-
-  const { data, error } = await query.returns<PublishedRecipeRow[]>();
+  const { data: recipes, error } = await baseQuery.returns<
+    Array<{ id: string; primary_cuisine: string | null; updated_at: string; deleted_at: string | null }>
+  >();
   if (error) {
     return {
       rows: [],
@@ -58,8 +58,51 @@ export async function getPublishedRecipes({
     };
   }
 
+  const recipeIds = (recipes || []).map((row) => row.id);
+  if (recipeIds.length === 0) return { rows: [], error: null };
+
+  const { data: translations, error: translationsError } = await client
+    .from("recipe_translations")
+    .select("recipe_id, locale, title, translation_status")
+    .in("recipe_id", recipeIds)
+    .eq("translation_status", "published")
+    .returns<Array<{ recipe_id: string; locale: string; title: string | null; translation_status: "published" }>>();
+
+  if (translationsError) {
+    return {
+      rows: [],
+      error: `Could not load published translations: ${translationsError.message}`,
+    };
+  }
+
+  const translationMap = new Map<string, Array<{ recipe_id: string; locale: string; title: string | null }>>();
+  for (const item of translations || []) {
+    const current = translationMap.get(item.recipe_id) || [];
+    translationMap.set(item.recipe_id, [...current, item]);
+  }
+
+  const rows: PublishedRecipeRow[] = [];
+  for (const recipe of recipes || []) {
+    const candidates = translationMap.get(recipe.id) || [];
+    const exact = candidates.find((item) => item.locale === locale);
+    const fallback = ALLOW_FEED_LOCALE_FALLBACK
+      ? candidates.find((item) => item.locale === DEFAULT_TRANSLATION_LOCALE)
+      : undefined;
+    const chosen = exact || fallback;
+    if (!chosen) continue;
+    rows.push({
+      id: recipe.id,
+      title: chosen.title || "",
+      primary_cuisine: recipe.primary_cuisine,
+      locale: chosen.locale,
+      requested_locale: locale,
+      is_fallback: !exact && Boolean(fallback),
+      updated_at: recipe.updated_at,
+    });
+  }
+
   return {
-    rows: data ?? [],
+    rows,
     error: null,
   };
 }
