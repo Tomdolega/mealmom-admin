@@ -182,8 +182,15 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
 
   const recipeIds = (recipes || []).map((item) => item.id);
   const labelMap = new Map<string, LabelRecord[]>();
+  const imageMap = new Map<string, string[]>();
+  const translationsByRecipe = new Map<
+    string,
+    Array<{ recipe_id: string; locale: string; title: string | null; translation_status: string }>
+  >();
+
   if (recipeIds.length > 0) {
-    const [{ data: recipeLabelLinks }, { data: recipeMeta }, { data: translationRows }] = await Promise.all([
+    const [{ data: recipeLabelLinks }, { data: recipeMeta }, { data: translationRows, error: translationRowsError }] =
+      await Promise.all([
       supabase
         .from("recipe_labels")
         .select("recipe_id, label_id")
@@ -201,14 +208,18 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
         .returns<Array<{ recipe_id: string; locale: string; title: string | null; translation_status: string }>>(),
     ]);
 
-    const imageMap = new Map<string, string[]>();
+    if (translationRowsError) {
+      console.error(`[${listDebugId}] Dashboard translation enrichment failed`, {
+        message: translationRowsError.message,
+        code: translationRowsError.code,
+        details: translationRowsError.details,
+        hint: translationRowsError.hint,
+      });
+    }
+
     for (const item of recipeMeta || []) imageMap.set(item.id, item.image_urls || []);
 
     const labelsById = new Map(labels.map((item) => [item.id, item]));
-    const translationsByRecipe = new Map<
-      string,
-      Array<{ recipe_id: string; locale: string; title: string | null; translation_status: string }>
-    >();
     for (const row of translationRows || []) {
       const current = translationsByRecipe.get(row.recipe_id) || [];
       translationsByRecipe.set(row.recipe_id, [...current, row]);
@@ -218,54 +229,55 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
       const label = labelsById.get(item.label_id);
       if (label) labelMap.set(item.recipe_id, [...next, label]);
     }
+  }
 
-    const enriched = (recipes || []).map((row) => ({
-      ...row,
-      image_urls: imageMap.get(row.id) || [],
-      labels: labelMap.get(row.id) || [],
-    }));
+  const enriched = (recipes || []).map((row) => ({
+    ...row,
+    image_urls: imageMap.get(row.id) || [],
+    labels: labelMap.get(row.id) || [],
+  }));
 
-    const finalRows = enriched
-      .filter((item) => {
-        if (params.hasImage === "1" && item.image_urls.length === 0) return false;
-        return true;
-      })
-      .map((item) => {
-        const preferredTranslation =
-          (translationsByRecipe.get(item.id) || []).find((row) => row.locale === params.language) ||
-          (translationsByRecipe.get(item.id) || []).find((row) => row.locale === defaultLocale) ||
-          (translationsByRecipe.get(item.id) || [])[0];
-        return {
-          id: item.id,
-          title: preferredTranslation?.title || item.title,
-          status: item.status,
-          language: preferredTranslation?.locale || "—",
-          updated_at: item.updated_at,
-          created_at: item.created_at,
-          deleted_at: item.deleted_at,
-          deleted_by: item.deleted_by,
-          primary_cuisine: item.primary_cuisine,
-          image_urls: item.image_urls,
-          labels: item.labels,
-        };
-      });
+  const finalRows = enriched
+    .filter((item) => {
+      if (params.hasImage === "1" && item.image_urls.length === 0) return false;
+      return true;
+    })
+    .map((item) => {
+      const preferredTranslation =
+        (translationsByRecipe.get(item.id) || []).find((row) => row.locale === params.language) ||
+        (translationsByRecipe.get(item.id) || []).find((row) => row.locale === defaultLocale) ||
+        (translationsByRecipe.get(item.id) || [])[0];
+      return {
+        id: item.id,
+        title: preferredTranslation?.title || item.title,
+        status: item.status,
+        language: preferredTranslation?.locale || "—",
+        updated_at: item.updated_at,
+        created_at: item.created_at,
+        deleted_at: item.deleted_at,
+        deleted_by: item.deleted_by,
+        primary_cuisine: item.primary_cuisine,
+        image_urls: item.image_urls,
+        labels: item.labels,
+      };
+    });
 
-    const activeParams = new URLSearchParams();
-    if (params.status) activeParams.set("status", params.status);
-    if (params.language) activeParams.set("language", params.language);
-    if (params.cuisine) activeParams.set("cuisine", params.cuisine);
-    if (params.search) activeParams.set("search", params.search);
-    if (params.mine) activeParams.set("mine", params.mine);
-    if (params.hasImage) activeParams.set("hasImage", params.hasImage);
-    if (params.missingNutrition) activeParams.set("missingNutrition", params.missingNutrition);
-    if (params.missingSubstitutions) activeParams.set("missingSubstitutions", params.missingSubstitutions);
-    if (params.label_id) activeParams.set("label_id", params.label_id);
-    if (params.sort) activeParams.set("sort", params.sort);
-    if (params.dir) activeParams.set("dir", params.dir);
-    if (params.page_size) activeParams.set("page_size", params.page_size);
+  const activeParams = new URLSearchParams();
+  if (params.status) activeParams.set("status", params.status);
+  if (params.language) activeParams.set("language", params.language);
+  if (params.cuisine) activeParams.set("cuisine", params.cuisine);
+  if (params.search) activeParams.set("search", params.search);
+  if (params.mine) activeParams.set("mine", params.mine);
+  if (params.hasImage) activeParams.set("hasImage", params.hasImage);
+  if (params.missingNutrition) activeParams.set("missingNutrition", params.missingNutrition);
+  if (params.missingSubstitutions) activeParams.set("missingSubstitutions", params.missingSubstitutions);
+  if (params.label_id) activeParams.set("label_id", params.label_id);
+  if (params.sort) activeParams.set("sort", params.sort);
+  if (params.dir) activeParams.set("dir", params.dir);
+  if (params.page_size) activeParams.set("page_size", params.page_size);
 
-    return (
-      <div className="space-y-6">
+  return (
+    <div className="space-y-6">
         <section className="space-y-4 rounded-xl border border-slate-200 bg-white/70 p-5 backdrop-blur-xl">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
@@ -388,6 +400,7 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
           <RecipeManagementPanel
             rows={finalRows}
             labels={labels}
+            enabledCuisines={normalizedSettings.enabled_cuisines}
             role={profile.role}
             page={page}
             pageSize={pageSize}
@@ -399,15 +412,6 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
             }
           />
         </section>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-6">
-      <section className="rounded-xl border border-slate-200 bg-white/70 p-5 backdrop-blur-xl">
-        <p className="text-sm text-slate-600">{tr(lang, "No data available.", "Brak danych.")}</p>
-      </section>
     </div>
   );
 }

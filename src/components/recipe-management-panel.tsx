@@ -13,6 +13,7 @@ import type { LabelRecord, ProfileRole } from "@/lib/types";
 type RecipeManagementPanelProps = {
   rows: RecipeManagementRow[];
   labels: LabelRecord[];
+  enabledCuisines?: string[];
   role: ProfileRole;
   isTrashView?: boolean;
   page: number;
@@ -34,6 +35,7 @@ const sortOptions = [
 export function RecipeManagementPanel({
   rows,
   labels: initialLabels,
+  enabledCuisines = [],
   role,
   isTrashView = false,
   page,
@@ -58,6 +60,28 @@ export function RecipeManagementPanel({
     () => rows.filter((item) => selectedIds.includes(item.id)),
     [rows, selectedIds],
   );
+  const activeFilters = useMemo(() => {
+    const filters: Array<{ key: string; label: string; value: string }> = [];
+    const status = searchParams.get("status");
+    const language = searchParams.get("language");
+    const cuisine = searchParams.get("cuisine");
+    const search = searchParams.get("search");
+    const mine = searchParams.get("mine");
+    const hasImage = searchParams.get("hasImage");
+    const labelId = searchParams.get("label_id");
+    const labelName = labels.find((item) => item.id === labelId)?.name || labelId;
+
+    if (status) filters.push({ key: "status", label: tr(lang, "Status", "Status"), value: status });
+    if (language) filters.push({ key: "language", label: tr(lang, "Language", "Język"), value: language });
+    if (cuisine) filters.push({ key: "cuisine", label: tr(lang, "Cuisine", "Kuchnia"), value: cuisine });
+    if (search) filters.push({ key: "search", label: tr(lang, "Search", "Szukaj"), value: search });
+    if (mine === "1") filters.push({ key: "mine", label: tr(lang, "Scope", "Zakres"), value: tr(lang, "My drafts", "Moje szkice") });
+    if (hasImage === "1") filters.push({ key: "hasImage", label: tr(lang, "Images", "Zdjęcia"), value: tr(lang, "Has image", "Ma zdjęcie") });
+    if (labelId) filters.push({ key: "label_id", label: tr(lang, "Label", "Etykieta"), value: labelName || labelId });
+    return filters;
+  }, [lang, labels, searchParams]);
+
+  const hasActiveFilters = activeFilters.length > 0;
   const allSelectedOnPage = rows.length > 0 && rows.every((item) => selectedIds.includes(item.id));
   const pageCount = Math.max(1, Math.ceil(totalCount / pageSize));
   const sortValue = `${searchParams.get("sort") || "updated_at"}.${searchParams.get("dir") || "desc"}`;
@@ -235,9 +259,55 @@ export function RecipeManagementPanel({
         </form>
       </div>
 
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-white/60 px-3 py-2">
+        <span className="text-xs font-medium uppercase tracking-wide text-slate-500">{tr(lang, "Active filters", "Aktywne filtry")}</span>
+        {hasActiveFilters ? (
+          activeFilters.map((item) => (
+            <button
+              key={`${item.key}-${item.value}`}
+              type="button"
+              className="inline-flex items-center gap-1 rounded-full border border-slate-300 bg-white px-2.5 py-1 text-xs text-slate-700 hover:bg-slate-50"
+              onClick={() => setQueryParam({ [item.key]: null })}
+            >
+              <span className="font-medium">{item.label}:</span>
+              <span>{item.value}</span>
+              <span aria-hidden>×</span>
+            </button>
+          ))
+        ) : (
+          <span className="text-xs text-slate-500">
+            {tr(lang, "Default view: draft + published, all languages, no trash.", "Widok domyślny: szkice + opublikowane, wszystkie języki, bez kosza.")}
+          </span>
+        )}
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          onClick={() =>
+            setQueryParam({
+              status: null,
+              language: null,
+              cuisine: null,
+              search: null,
+              mine: null,
+              hasImage: null,
+              missingNutrition: null,
+              missingSubstitutions: null,
+              label_id: null,
+              sort: null,
+              dir: null,
+              page: null,
+            })
+          }
+        >
+          {tr(lang, "Reset filters", "Resetuj filtry")}
+        </Button>
+      </div>
+
       <BulkActionBar
         canManage={canManage}
         isTrashView={isTrashView}
+        enabledCuisines={enabledCuisines}
         selectedCount={selectedIds.length}
         allSelectedOnPage={allSelectedOnPage}
         labels={labels}

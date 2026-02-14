@@ -36,6 +36,7 @@ function buildCuisineOrFilter(cuisine: string) {
 
 type DashboardFilterQuery<T> = {
   eq: (column: string, value: string) => T;
+  in: (column: string, values: string[]) => T;
   ilike: (column: string, pattern: string) => T;
   or: (filters: string) => T;
   not: (column: string, operator: string, value: string) => T;
@@ -53,6 +54,7 @@ export function applyDashboardRecipeListFilters<T extends DashboardFilterQuery<T
   if (view === "trash") nextQuery = nextQuery.not("deleted_at", "is", "null");
   else nextQuery = nextQuery.filter("deleted_at", "is", "null");
   if (params.status) nextQuery = nextQuery.eq("status", params.status);
+  else if (view === "active") nextQuery = nextQuery.in("status", ["draft", "published"]);
   if (params.mine === "1") {
     nextQuery = nextQuery.eq("created_by", userId);
     nextQuery = nextQuery.eq("status", "draft");
