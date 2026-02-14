@@ -28,14 +28,15 @@ Next.js (App Router) + Supabase admin panel for recipe entry, review workflow, p
 - Dashboard quick filters, status badges, and export published pack
 - Email-like recipe management:
   - Row selection with checkboxes (single, select all on page, shift-range)
-  - Bulk actions: move to Trash, restore, permanent delete (admin), set status, assign/remove label, export selected CSV/JSON
+  - Bulk actions: move to Trash, restore, permanent delete (admin), set status, assign/remove label, set cuisine, set tags, export selected CSV/JSON
   - Sorting + pagination controls in URL params
+  - Active filter chips + one-click reset
+  - Default list view shows `draft` + `published` so imported data does not appear empty by default
   - Label organization (`labels` + `recipe_labels`)
 - Trash view (`/trash`) with restore and permanent delete safeguards
 - UI language switcher (EN/PL) in top navigation
 - Settings page:
   - Global app settings (admin): default/enabled languages + enabled cuisines
-  - Per-user preferences: preferred language, ordered preferred cuisines, UI density
   - Connection status widget for Supabase health check
 - Admin-only import page for CSV/XLSX with validation + dry run + diff-like preview + error report CSV
 
@@ -112,16 +113,11 @@ In Supabase Dashboard SQL Editor, paste and run each file.
 - `app_settings` (singleton row `id=1`):
   - `default_language`
   - `enabled_languages` (used by forms and dashboard chips)
-  - `enabled_cuisines` (used by recipe forms and preferences)
-- `user_settings`:
-  - `preferred_language`
-  - `preferred_cuisines` (ordered array)
-  - `ui_density`
+  - `enabled_cuisines` (used by recipe forms and bulk recipe management)
 
 RLS summary:
 
 - `app_settings`: admin read/write, authenticated users read
-- `user_settings`: user read/write own row, admin read/write all rows
 
 ## Import Format (CSV/XLSX)
 
@@ -143,6 +139,11 @@ Minimum supported columns:
 - `image_urls` (comma-separated URLs)
 - `ingredients` (JSON array string)
 - `steps` (JSON array string)
+
+Ingredient JSON supports OFF linkage and normalized units:
+- `unit_code`: one of `g, kg, ml, l, pcs, tsp, tbsp, cup, pack`
+- `unit`: display label (kept for backward compatibility)
+- `off_barcode`, `off_product_name`, `off_nutrition_per_100g`, `off_image_url`, `off_categories`
 
 Optional columns:
 
