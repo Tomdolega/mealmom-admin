@@ -1,6 +1,7 @@
 export type ProfileRole = "admin" | "editor" | "reviewer";
 export type RecipeStatus = "draft" | "in_review" | "published" | "archived";
 export type UiDensity = "comfortable" | "compact";
+export type TranslationStatus = "draft" | "in_review" | "published";
 
 export type IngredientItem = {
   ingredient_key?: string;
@@ -68,6 +69,22 @@ export type RecipeRecord = {
   published_at: string | null;
   deleted_at?: string | null;
   deleted_by?: string | null;
+};
+
+export type RecipeTranslationRecord = {
+  id: string;
+  recipe_id: string;
+  locale: string;
+  title: string | null;
+  short_phrase: string | null;
+  joanna_says: string | null;
+  ingredients: IngredientItem[];
+  steps: StepItem[];
+  tips: string | null;
+  substitutions: IngredientSubstitution[];
+  translation_status: TranslationStatus;
+  created_at: string;
+  updated_at: string;
 };
 
 export type LabelRecord = {
