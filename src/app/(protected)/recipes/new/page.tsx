@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { getCurrentProfileOrRedirect } from "@/lib/auth";
 import { normalizeAppSettings } from "@/lib/settings";
 import { getServerUILang, tr } from "@/lib/ui-language.server";
-import type { AppSettingsRecord } from "@/lib/types";
+import type { AppSettingsRecord, UnitRecord } from "@/lib/types";
 
 type NewRecipeProps = {
   searchParams: Promise<{ translation_group_id?: string; language?: string }>;
@@ -16,11 +16,18 @@ export default async function NewRecipePage({ searchParams }: NewRecipeProps) {
     notFound();
   }
 
-  const { data: appSettings } = await supabase
-    .from("app_settings")
-    .select("id, default_language, enabled_languages, enabled_cuisines, created_at, updated_at")
-    .eq("id", 1)
-    .maybeSingle<AppSettingsRecord>();
+  const [{ data: appSettings }, { data: units }] = await Promise.all([
+    supabase
+      .from("app_settings")
+      .select("id, default_language, enabled_languages, enabled_cuisines, created_at, updated_at")
+      .eq("id", 1)
+      .maybeSingle<AppSettingsRecord>(),
+    supabase
+      .from("units")
+      .select("code, name_pl, name_en, type, created_at, updated_at")
+      .order("code", { ascending: true })
+      .returns<UnitRecord[]>(),
+  ]);
 
   const normalizedSettings = normalizeAppSettings(appSettings);
 
@@ -39,6 +46,7 @@ export default async function NewRecipePage({ searchParams }: NewRecipeProps) {
         enabledLanguages={normalizedSettings.enabled_languages}
         enabledCuisines={normalizedSettings.enabled_cuisines}
         defaultLanguage={normalizedSettings.default_language}
+        availableUnits={units || []}
       />
     </div>
   );

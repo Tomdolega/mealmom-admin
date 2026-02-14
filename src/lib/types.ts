@@ -197,6 +197,15 @@ export type RecipeIngredientRecord = {
   updated_at: string;
 };
 
+export type UnitRecord = {
+  code: string;
+  name_pl: string;
+  name_en: string | null;
+  type: string;
+  created_at?: string;
+  updated_at?: string;
+};
+
 export type RecipeTranslationRecord = {
   id: string;
   recipe_id: string;

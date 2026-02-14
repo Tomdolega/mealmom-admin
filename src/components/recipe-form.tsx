@@ -16,6 +16,7 @@ import type {
   RecipeStatus,
   StepItem,
   SubstitutionAlternative,
+  UnitRecord,
 } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
@@ -40,6 +41,7 @@ type RecipeFormProps = {
   enabledLanguages: string[];
   enabledCuisines: string[];
   defaultLanguage: string;
+  availableUnits?: UnitRecord[];
 };
 
 type SaveKind = "manual" | "autosave";
@@ -186,6 +188,7 @@ export function RecipeForm({
   enabledLanguages,
   enabledCuisines,
   defaultLanguage,
+  availableUnits = [],
 }: RecipeFormProps) {
   const lang = getClientUILang();
   const tt = useCallback((en: string, pl: string) => tr(lang, en, pl), [lang]);
@@ -259,6 +262,13 @@ export function RecipeForm({
   const reviewerStatusEditable = role === "reviewer" && mode === "edit" && recipe?.status === "in_review";
   const allowedStatuses = useMemo(() => statusOptionsForRole(role, mode, recipe?.status || status), [mode, recipe?.status, role, status]);
   const availableCuisineOptions = enabledCuisines.filter((item) => !selectedCuisines.includes(item));
+  const unitOptions = useMemo(
+    () =>
+      availableUnits.length > 0
+        ? availableUnits.map((item) => ({ code: item.code, label: tt(item.name_en || item.code, item.name_pl || item.code) }))
+        : INGREDIENT_UNITS.map((item) => ({ code: item.code, label: tt(item.en, item.pl) })),
+    [availableUnits, tt],
+  );
   const normalizedIngredients = useMemo(() => normalizeIngredients(ingredients), [ingredients]);
   const normalizedSteps = useMemo(() => normalizeSteps(steps), [steps]);
   const nutritionSummary = useMemo(
@@ -636,7 +646,10 @@ export function RecipeForm({
         return {
           recipe_id: result.data.id,
           display_name: ingredient.name || ingredient.off_product_name || `Ingredient ${index + 1}`,
+          name_override: ingredient.name || null,
           product_id: ingredient.product_id || null,
+          quantity: Number(ingredient.amount) || 0,
+          unit_code: ingredient.unit_code || ingredient.unit || "g",
           qty: Number(ingredient.amount) || 0,
           unit: ingredient.unit_code || ingredient.unit,
           note: ingredient.note || null,
@@ -1286,9 +1299,9 @@ export function RecipeForm({
                     )
                   }
                 >
-                  {INGREDIENT_UNITS.map((item) => (
+                  {unitOptions.map((item) => (
                     <option key={item.code} value={item.code}>
-                      {tt(item.en, item.pl)}
+                      {item.label}
                     </option>
                   ))}
                 </Select>

@@ -10,7 +10,7 @@ import { getCurrentProfileOrRedirect } from "@/lib/auth";
 import { normalizeAppSettings } from "@/lib/settings";
 import { getServerUILang, tr } from "@/lib/ui-language.server";
 import { getLocaleLabel } from "@/lib/translation-config";
-import type { AppSettingsRecord, LabelRecord, RecipeRecord } from "@/lib/types";
+import type { AppSettingsRecord, LabelRecord, RecipeRecord, UnitRecord } from "@/lib/types";
 
 type RecipeEditProps = {
   params: Promise<{ id: string }>;
@@ -146,7 +146,7 @@ export default async function RecipeEditPage({ params }: RecipeEditProps) {
     .order("language", { ascending: true })
     .returns<Array<{ id: string; language: string; status: string; title: string }>>();
 
-  const [{ data: labels }, { data: recipeLabelLinks }] = await Promise.all([
+  const [{ data: labels }, { data: recipeLabelLinks }, { data: units }] = await Promise.all([
     supabase
       .from("labels")
       .select("id, name, color, created_at")
@@ -157,6 +157,11 @@ export default async function RecipeEditPage({ params }: RecipeEditProps) {
       .select("label_id")
       .eq("recipe_id", recipe.id)
       .returns<Array<{ label_id: string }>>(),
+    supabase
+      .from("units")
+      .select("code, name_pl, name_en, type, created_at, updated_at")
+      .order("code", { ascending: true })
+      .returns<UnitRecord[]>(),
   ]);
 
   const assignedLabelIds = (recipeLabelLinks || []).map((item) => item.label_id);
@@ -227,6 +232,7 @@ export default async function RecipeEditPage({ params }: RecipeEditProps) {
         enabledLanguages={normalizedSettings.enabled_languages}
         enabledCuisines={normalizedSettings.enabled_cuisines}
         defaultLanguage={normalizedSettings.default_language}
+        availableUnits={units || []}
       />
     </div>
   );
