@@ -9,6 +9,19 @@ export type IngredientItem = {
   amount: string;
   unit: string;
   note?: string;
+  off_barcode?: string;
+  off_product_name?: string;
+  off_nutrition_per_100g?: {
+    kcal?: number | null;
+    protein_g?: number | null;
+    fat_g?: number | null;
+    carbs_g?: number | null;
+    sugar_g?: number | null;
+    fiber_g?: number | null;
+    salt_g?: number | null;
+  };
+  off_image_url?: string;
+  off_categories?: string[];
 };
 
 export type StepItem = {
@@ -24,11 +37,40 @@ export type NutritionValues = {
   carbs_g: number | null;
   fiber_g: number | null;
   salt_g: number | null;
+  sugar_g?: number | null;
 };
 
 export type NutritionRecord = {
   per_serving?: Partial<NutritionValues>;
   per_100g?: Partial<NutritionValues>;
+};
+
+export type RecipeNutritionSummary = {
+  kcal: number;
+  protein_g: number;
+  fat_g: number;
+  carbs_g: number;
+  sugar_g: number;
+  fiber_g: number;
+  salt_g: number;
+  per_serving?: {
+    kcal: number;
+    protein_g: number;
+    fat_g: number;
+    carbs_g: number;
+    sugar_g: number;
+    fiber_g: number;
+    salt_g: number;
+  };
+  per_100g?: {
+    kcal: number;
+    protein_g: number;
+    fat_g: number;
+    carbs_g: number;
+    sugar_g: number;
+    fiber_g: number;
+    salt_g: number;
+  };
 };
 
 export type SubstitutionAlternative = {
@@ -58,6 +100,7 @@ export type RecipeRecord = {
   total_minutes: number | null;
   difficulty: string | null;
   nutrition: NutritionRecord;
+  nutrition_summary?: RecipeNutritionSummary;
   substitutions: IngredientSubstitution[];
   image_urls: string[];
   ingredients: IngredientItem[];
