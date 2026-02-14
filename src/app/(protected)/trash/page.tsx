@@ -61,10 +61,9 @@ export default async function TrashPage({ searchParams }: TrashPageProps) {
 
   const labelRecipeIds = new Set((labelLinks || []).map((item) => item.recipe_id));
   const translationRecipeIds = new Set<string>();
-  if (params.language || params.search) {
+  if (params.language) {
     let translationQuery = supabase.from("recipe_translations").select("recipe_id");
     if (params.language) translationQuery = translationQuery.eq("locale", params.language);
-    if (params.search) translationQuery = translationQuery.ilike("title", `%${params.search}%`);
     const { data: translationLinks } = await translationQuery.returns<Array<{ recipe_id: string }>>();
     for (const item of translationLinks || []) translationRecipeIds.add(item.recipe_id);
   }
@@ -72,8 +71,8 @@ export default async function TrashPage({ searchParams }: TrashPageProps) {
 
   let countQuery = supabase.from("recipes").select("id", { count: "exact", head: true });
   countQuery = applyDashboardRecipeListFilters(countQuery, params, session.user.id, "trash");
-  if ((params.language || params.search) && translationRecipeIds.size > 0) countQuery = countQuery.in("id", [...translationRecipeIds]);
-  else if ((params.language || params.search) && translationRecipeIds.size === 0) countQuery = countQuery.eq("id", "00000000-0000-0000-0000-000000000000");
+  if (params.language && translationRecipeIds.size > 0) countQuery = countQuery.in("id", [...translationRecipeIds]);
+  else if (params.language && translationRecipeIds.size === 0) countQuery = countQuery.eq("id", "00000000-0000-0000-0000-000000000000");
   if (params.label_id && labelRecipeIds.size > 0) countQuery = countQuery.in("id", [...labelRecipeIds]);
   else if (params.label_id && labelRecipeIds.size === 0) countQuery = countQuery.eq("id", "00000000-0000-0000-0000-000000000000");
 
@@ -83,8 +82,8 @@ export default async function TrashPage({ searchParams }: TrashPageProps) {
     .order(sortColumn, { ascending: sortAsc })
     .range(from, to);
   listQuery = applyDashboardRecipeListFilters(listQuery, params, session.user.id, "trash");
-  if ((params.language || params.search) && translationRecipeIds.size > 0) listQuery = listQuery.in("id", [...translationRecipeIds]);
-  else if ((params.language || params.search) && translationRecipeIds.size === 0) listQuery = listQuery.eq("id", "00000000-0000-0000-0000-000000000000");
+  if (params.language && translationRecipeIds.size > 0) listQuery = listQuery.in("id", [...translationRecipeIds]);
+  else if (params.language && translationRecipeIds.size === 0) listQuery = listQuery.eq("id", "00000000-0000-0000-0000-000000000000");
   if (params.label_id && labelRecipeIds.size > 0) listQuery = listQuery.in("id", [...labelRecipeIds]);
   else if (params.label_id && labelRecipeIds.size === 0) listQuery = listQuery.eq("id", "00000000-0000-0000-0000-000000000000");
 

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { IngredientProductLinker } from "@/components/ingredient-product-linker";
+import { TagSelector } from "@/components/tag-selector";
 import type {
   IngredientItem,
   IngredientSubstitution,
@@ -21,8 +22,9 @@ import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { normalizeTagSlug, nutritionToComputedValues } from "@/lib/food-products";
 import { getRecipeStatusLabel } from "@/lib/recipe-status";
-import { computeRecipeNutritionSummary, suggestSubstitutionsForIngredient } from "@/lib/nutrition";
+import { computeRecipeNutritionSummary, suggestSubstitutionsForIngredient, toGrams } from "@/lib/nutrition";
 import { getUnitLabel, INGREDIENT_UNITS, normalizeUnitCode } from "@/lib/ingredient-units";
 import { getClientUILang, tr } from "@/lib/ui-language.client";
 
@@ -48,14 +50,19 @@ type RecipePayload = {
   title: string;
   subtitle: string | null;
   description: string | null;
+  description_short?: string | null;
+  description_full?: string | null;
   status: RecipeStatus;
   primary_cuisine: string | null;
   cuisines: string[];
   tags: string[];
   servings: number | null;
   total_minutes: number | null;
+  total_time_min?: number | null;
   difficulty: string | null;
   nutrition: NutritionRecord;
+  nutrition_total?: Partial<NutritionValues>;
+  nutrition_per_serving?: Partial<NutritionValues>;
   nutrition_summary: NonNullable<RecipeRecord["nutrition_summary"]>;
   substitutions: IngredientSubstitution[];
   image_urls: string[];
@@ -133,8 +140,9 @@ function normalizeIngredients(items: IngredientItem[]) {
       ingredient_key: item.ingredient_key?.trim() || undefined,
       name: item.name.trim(),
       amount: item.amount.trim(),
-      unit: getUnitLabel(normalizeUnitCode(item.unit_code || item.unit) || "g", "en"),
+      unit: normalizeUnitCode(item.unit_code || item.unit) || "g",
       note: item.note?.trim() || "",
+      product_id: item.product_id || undefined,
       off_barcode: item.off_barcode?.trim() || undefined,
       off_product_name: item.off_product_name?.trim() || undefined,
       off_nutrition_per_100g: item.off_nutrition_per_100g || undefined,
@@ -193,7 +201,7 @@ export function RecipeForm({
   const [status, setStatus] = useState<RecipeStatus>(recipe?.status || (role === "reviewer" ? "in_review" : "draft"));
   const [primaryCuisine, setPrimaryCuisine] = useState(recipe?.primary_cuisine || "");
   const [selectedCuisines, setSelectedCuisines] = useState<string[]>(recipe?.cuisines || []);
-  const [tagsText, setTagsText] = useState((recipe?.tags || []).join(", "));
+  const [selectedTags, setSelectedTags] = useState<string[]>(Array.isArray(recipe?.tags) ? recipe.tags : []);
   const [servings, setServings] = useState(recipe?.servings?.toString() || "");
   const [totalMinutes, setTotalMinutes] = useState(recipe?.total_minutes?.toString() || "");
   const [difficulty, setDifficulty] = useState(recipe?.difficulty || "");
@@ -233,7 +241,7 @@ export function RecipeForm({
       status: recipe?.status || (role === "reviewer" ? "in_review" : "draft"),
       primary_cuisine: recipe?.primary_cuisine || null,
       cuisines: recipe?.cuisines || [],
-      tags: recipe?.tags || [],
+      tags: Array.isArray(recipe?.tags) ? recipe.tags : [],
       servings: recipe?.servings ?? null,
       total_minutes: recipe?.total_minutes ?? null,
       difficulty: recipe?.difficulty || null,
@@ -251,10 +259,27 @@ export function RecipeForm({
   const reviewerStatusEditable = role === "reviewer" && mode === "edit" && recipe?.status === "in_review";
   const allowedStatuses = useMemo(() => statusOptionsForRole(role, mode, recipe?.status || status), [mode, recipe?.status, role, status]);
   const availableCuisineOptions = enabledCuisines.filter((item) => !selectedCuisines.includes(item));
+  const normalizedIngredients = useMemo(() => normalizeIngredients(ingredients), [ingredients]);
+  const normalizedSteps = useMemo(() => normalizeSteps(steps), [steps]);
   const nutritionSummary = useMemo(
-    () => computeRecipeNutritionSummary(normalizeIngredients(ingredients), servings ? Number(servings) : null),
-    [ingredients, servings],
+    () => computeRecipeNutritionSummary(normalizedIngredients, servings ? Number(servings) : null),
+    [normalizedIngredients, servings],
   );
+  const recipeChecklist = useMemo(() => {
+    const items: string[] = [];
+    if (!title.trim()) items.push(tt("Title is required.", "Tytuł jest wymagany."));
+    if (!description.trim()) items.push(tt("Short description is required.", "Krótki opis jest wymagany."));
+    if (!servings || !Number.isFinite(Number(servings)) || Number(servings) <= 0) {
+      items.push(tt("Servings must be a number greater than 0.", "Porcje muszą być liczbą większą od 0."));
+    }
+    if (normalizedIngredients.length < 1) items.push(tt("Add at least 1 ingredient.", "Dodaj co najmniej 1 składnik."));
+    if (normalizedSteps.length < 1) items.push(tt("Add at least 1 step.", "Dodaj co najmniej 1 krok."));
+    if (status === "published" && imageUrls.length < 1) {
+      items.push(tt("Published recipe requires at least 1 image.", "Opublikowany przepis wymaga co najmniej 1 zdjęcia."));
+    }
+    return items;
+  }, [description, imageUrls.length, normalizedIngredients.length, normalizedSteps.length, servings, status, title, tt]);
+  const publishReady = recipeChecklist.length === 0;
 
   const basePayload = useMemo(
     () => ({
@@ -266,7 +291,7 @@ export function RecipeForm({
       status,
       primary_cuisine: primaryCuisine || null,
       cuisines: selectedCuisines,
-      tags: tagsText,
+      tags: selectedTags,
       servings: servings,
       total_minutes: totalMinutes,
       difficulty: difficulty || null,
@@ -274,17 +299,17 @@ export function RecipeForm({
         per_serving: normalizeNutritionValues(nutritionPerServing),
         per_100g: normalizeNutritionValues(nutritionPer100g),
       },
-      nutrition_summary: computeRecipeNutritionSummary(normalizeIngredients(ingredients), servings ? Number(servings) : null),
+      nutrition_summary: computeRecipeNutritionSummary(normalizedIngredients, servings ? Number(servings) : null),
       substitutions: normalizeSubstitutions(substitutions),
       image_urls: imageUrls,
-      ingredients: normalizeIngredients(ingredients),
-      steps: normalizeSteps(steps),
+      ingredients: normalizedIngredients,
+      steps: normalizedSteps,
     }),
     [
       description,
       difficulty,
       imageUrls,
-      ingredients,
+      normalizedIngredients,
       nutritionPer100g,
       nutritionPerServing,
       primaryCuisine,
@@ -293,10 +318,10 @@ export function RecipeForm({
       selectedCuisines,
       servings,
       status,
-      steps,
+      normalizedSteps,
       subtitle,
       substitutions,
-      tagsText,
+      selectedTags,
       title,
       totalMinutes,
       translationGroupId,
@@ -311,10 +336,9 @@ export function RecipeForm({
       const nextCuisines = Array.isArray(candidate.cuisines)
         ? [...new Set(candidate.cuisines.map((item) => item.trim()).filter(Boolean))]
         : [];
-      const nextTags = String(candidate.tags || "")
-        .split(",")
-        .map((item) => item.trim())
-        .filter(Boolean);
+      const nextTags = Array.isArray(candidate.tags)
+        ? [...new Set(candidate.tags.map((item) => normalizeTagSlug(String(item || ""))).filter(Boolean))]
+        : [];
       const nextIngredients = Array.isArray(candidate.ingredients) ? candidate.ingredients : [];
       const nextSteps = Array.isArray(candidate.steps) ? candidate.steps : [];
       const nextImageUrls = Array.isArray(candidate.image_urls)
@@ -341,6 +365,9 @@ export function RecipeForm({
 
       if (!nextTitle) {
         return { payload: null, message: tt("Title is required.", "Tytuł jest wymagany.") };
+      }
+      if (!String(candidate.description || "").trim()) {
+        return { payload: null, message: tt("Short description is required.", "Krótki opis jest wymagany.") };
       }
       if (!enabledLanguages.includes(nextLanguage)) {
         return { payload: null, message: tt("Language must be selected from enabled languages.", "Język musi być wybrany z aktywnych języków.") };
@@ -375,20 +402,42 @@ export function RecipeForm({
           return { payload: null, message: tt("Ingredient unit is required.", "Jednostka składnika jest wymagana.") };
         }
       }
+      if (nextStatus === "published" && nextImageUrls.length < 1) {
+        return { payload: null, message: tt("Published recipe requires at least one image.", "Opublikowany przepis wymaga co najmniej jednego zdjęcia.") };
+      }
+      if (nextStatus === "published" && nextIngredients.length < 1) {
+        return { payload: null, message: tt("Published recipe requires at least one ingredient.", "Opublikowany przepis wymaga co najmniej jednego składnika.") };
+      }
+      if (nextStatus === "published" && nextSteps.length < 1) {
+        return { payload: null, message: tt("Published recipe requires at least one step.", "Opublikowany przepis wymaga co najmniej jednego kroku.") };
+      }
 
       const payload: RecipePayload = {
         language: nextLanguage,
         title: nextTitle,
         subtitle: candidate.subtitle,
         description: candidate.description,
+        description_short: String(candidate.description || "").trim() || null,
+        description_full: String(candidate.description || "").trim() || null,
         status: nextStatus,
         primary_cuisine: candidate.primary_cuisine || null,
         cuisines: nextCuisines,
         tags: nextTags,
         servings: servingsNumber,
         total_minutes: totalMinutesNumber,
+        total_time_min: totalMinutesNumber,
         difficulty: candidate.difficulty,
         nutrition: nextNutrition,
+        nutrition_total: {
+          kcal: nextNutritionSummary.kcal ?? null,
+          protein_g: nextNutritionSummary.protein_g ?? null,
+          fat_g: nextNutritionSummary.fat_g ?? null,
+          carbs_g: nextNutritionSummary.carbs_g ?? null,
+          sugar_g: nextNutritionSummary.sugar_g ?? null,
+          fiber_g: nextNutritionSummary.fiber_g ?? null,
+          salt_g: nextNutritionSummary.salt_g ?? null,
+        },
+        nutrition_per_serving: nextNutritionSummary.per_serving || {},
         nutrition_summary: nextNutritionSummary,
         substitutions: nextSubstitutions,
         image_urls: nextImageUrls,
@@ -504,6 +553,91 @@ export function RecipeForm({
         });
       }
 
+      // Keep relational ingredient/tag tables in sync with the editor payload.
+      const normalizedTagSlugs = [...new Set(payload.tags.map((item) => normalizeTagSlug(item)).filter(Boolean))];
+      if (normalizedTagSlugs.length > 0) {
+        const tagRows = normalizedTagSlugs.map((slug) => ({
+          slug,
+          name_pl: slug.replaceAll("-", " "),
+          type: "custom",
+        }));
+        const tagUpsert = await supabase.from("tags").upsert(tagRows, { onConflict: "slug" });
+        if (tagUpsert.error) {
+          console.warn("Tag upsert failed during recipe save", {
+            message: tagUpsert.error.message,
+            code: tagUpsert.error.code,
+          });
+        }
+      }
+
+      const tagsLookup = await supabase
+        .from("tags")
+        .select("id, slug")
+        .in("slug", normalizedTagSlugs)
+        .returns<Array<{ id: string; slug: string }>>();
+      if (tagsLookup.error) {
+        console.warn("Tag lookup failed during recipe save", {
+          message: tagsLookup.error.message,
+          code: tagsLookup.error.code,
+        });
+      }
+      const tagIds = (tagsLookup.data || []).map((item) => item.id);
+      const clearRecipeTags = await supabase.from("recipe_tags").delete().eq("recipe_id", result.data.id);
+      if (clearRecipeTags.error) {
+        console.warn("Recipe tag cleanup failed during recipe save", {
+          message: clearRecipeTags.error.message,
+          code: clearRecipeTags.error.code,
+        });
+      } else if (tagIds.length > 0) {
+        const recipeTagRows = tagIds.map((tagId) => ({ recipe_id: result.data.id, tag_id: tagId }));
+        const writeRecipeTags = await supabase.from("recipe_tags").upsert(recipeTagRows, {
+          onConflict: "recipe_id,tag_id",
+        });
+        if (writeRecipeTags.error) {
+          console.warn("Recipe tag upsert failed during recipe save", {
+            message: writeRecipeTags.error.message,
+            code: writeRecipeTags.error.code,
+          });
+        }
+      }
+
+      const normalizedSubstitutions = normalizeSubstitutions(substitutions);
+      const ingredientRows = payload.ingredients.map((ingredient, index) => {
+        const slotKey = ingredient.ingredient_key?.trim() || `ingredient_${index + 1}`;
+        const matchedSubstitutions = normalizedSubstitutions.find((item) => item.ingredient_key === slotKey);
+        const grams = toGrams(ingredient.amount, ingredient.unit_code || ingredient.unit);
+        return {
+          recipe_id: result.data.id,
+          display_name: ingredient.name || ingredient.off_product_name || `Ingredient ${index + 1}`,
+          product_id: ingredient.product_id || null,
+          qty: Number(ingredient.amount) || 0,
+          unit: ingredient.unit_code || ingredient.unit,
+          note: ingredient.note || null,
+          sort_order: index + 1,
+          substitutions: matchedSubstitutions?.alternatives || [],
+          computed: nutritionToComputedValues(ingredient.off_nutrition_per_100g, grams || 0),
+        };
+      });
+
+      const clearRecipeIngredients = await supabase
+        .from("recipe_ingredients")
+        .delete()
+        .eq("recipe_id", result.data.id);
+      if (clearRecipeIngredients.error) {
+        console.warn("Recipe ingredient cleanup failed during recipe save", {
+          message: clearRecipeIngredients.error.message,
+          code: clearRecipeIngredients.error.code,
+        });
+      } else if (ingredientRows.length > 0) {
+        const writeRecipeIngredients = await supabase.from("recipe_ingredients").insert(ingredientRows);
+        if (writeRecipeIngredients.error) {
+          console.warn("Recipe ingredient sync failed during recipe save", {
+            message: writeRecipeIngredients.error.message,
+            code: writeRecipeIngredients.error.code,
+          });
+        }
+      }
+
       let refreshedRecipe: RecipeRecord | null = null;
       if (result.data?.id) {
         const refetch = await supabase
@@ -528,7 +662,7 @@ export function RecipeForm({
           setStatus(refreshedRecipe.status);
           setPrimaryCuisine(refreshedRecipe.primary_cuisine || "");
           setSelectedCuisines(Array.isArray(refreshedRecipe.cuisines) ? refreshedRecipe.cuisines : []);
-          setTagsText(Array.isArray(refreshedRecipe.tags) ? refreshedRecipe.tags.join(", ") : "");
+          setSelectedTags(Array.isArray(refreshedRecipe.tags) ? refreshedRecipe.tags : []);
           setServings(
             typeof refreshedRecipe.servings === "number" && Number.isFinite(refreshedRecipe.servings)
               ? String(refreshedRecipe.servings)
@@ -617,6 +751,7 @@ export function RecipeForm({
       recipe,
       router,
       status,
+      substitutions,
       tt,
       validatePayload,
     ],
@@ -804,6 +939,30 @@ export function RecipeForm({
         ) : null}
       </section>
 
+      <section className="space-y-2 rounded-xl border border-slate-200 bg-white/70 p-4 backdrop-blur-xl">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-base font-semibold text-slate-900">{tt("Publishing checklist", "Checklista publikacji")}</h2>
+          <span
+            className={
+              publishReady
+                ? "rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700"
+                : "rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700"
+            }
+          >
+            {publishReady ? tt("Ready to publish", "Gotowe do publikacji") : tt("Needs completion", "Wymaga uzupełnienia")}
+          </span>
+        </div>
+        {recipeChecklist.length === 0 ? (
+          <p className="text-sm text-slate-600">{tt("All required fields are complete.", "Wszystkie wymagane pola są uzupełnione.")}</p>
+        ) : (
+          <ul className="list-disc space-y-1 pl-5 text-sm text-slate-700">
+            {recipeChecklist.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        )}
+      </section>
+
       <section className="space-y-4 rounded-xl border border-slate-200 bg-white/70 p-4 backdrop-blur-xl">
         <header className="space-y-1 border-b border-slate-200 pb-3">
           <h2 className="text-base font-semibold text-slate-900">{tt("Recipe details", "Szczegóły przepisu")}</h2>
@@ -884,8 +1043,8 @@ export function RecipeForm({
               ))}
             </div>
           </FormField>
-          <FormField label={tt("Tags (comma-separated)", "Tagi (po przecinku)")}>
-            <Input value={tagsText} onChange={(e) => setTagsText(e.target.value)} placeholder={tt("quick, family", "szybkie, rodzinne")} disabled={!canEditContent} />
+          <FormField label={tt("Tags", "Tagi")} hint={tt("Use tags for future filtering and recommendations.", "Używaj tagów do przyszłego filtrowania i rekomendacji.")}>
+            <TagSelector value={selectedTags} onChange={setSelectedTags} disabled={!canEditContent} />
           </FormField>
           <FormField label={tt("Servings", "Porcje")}>
             <Input type="number" min={1} value={servings} onChange={(e) => setServings(e.target.value)} disabled={!canEditContent} />
@@ -1084,7 +1243,7 @@ export function RecipeForm({
                           ? {
                               ...item,
                               unit_code: e.target.value as IngredientItem["unit_code"],
-                              unit: getUnitLabel(e.target.value as NonNullable<IngredientItem["unit_code"]>, lang),
+                              unit: e.target.value,
                             }
                           : item,
                       ),
@@ -1108,10 +1267,19 @@ export function RecipeForm({
                         i === index
                           ? {
                               ...item,
-                              off_barcode: product.barcode,
+                              product_id: product.id,
+                              off_barcode: product.barcode || product.source_id,
                               off_product_name: product.name,
-                              off_nutrition_per_100g: product.nutrition_per_100g,
-                              off_image_url: product.image_url || undefined,
+                              off_nutrition_per_100g: {
+                                kcal: product.kcal_100g,
+                                protein_g: product.protein_100g,
+                                fat_g: product.fat_100g,
+                                carbs_g: product.carbs_100g,
+                                sugar_g: product.sugar_100g,
+                                fiber_g: product.fiber_100g,
+                                salt_g: product.salt_100g,
+                              },
+                              off_image_url: undefined,
                               off_categories: product.categories || [],
                             }
                           : item,
@@ -1216,6 +1384,30 @@ export function RecipeForm({
             </div>
           ))}
         </div>
+
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <h3 className="text-sm font-semibold text-slate-700">{tt("Nutrition live summary", "Podsumowanie nutrition na żywo")}</h3>
+          <div className="mt-2 overflow-x-auto">
+            <table className="min-w-full text-left text-xs text-slate-700">
+              <thead>
+                <tr className="text-slate-500">
+                  <th className="px-2 py-1">{tt("Metric", "Parametr")}</th>
+                  <th className="px-2 py-1">{tt("Total", "Całość")}</th>
+                  <th className="px-2 py-1">{tt("Per serving", "Na porcję")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {nutritionKeys.map((key) => (
+                  <tr key={`nutrition-live-${key}`} className="border-t border-slate-200">
+                    <td className="px-2 py-1">{key}</td>
+                    <td className="px-2 py-1">{nutritionSummary[key]}</td>
+                    <td className="px-2 py-1">{nutritionSummary.per_serving?.[key] ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </section>
 
       <section className="space-y-4 rounded-xl border border-slate-200 bg-white/70 p-4 backdrop-blur-xl">
@@ -1297,7 +1489,7 @@ export function RecipeForm({
               <ul className="mt-2 space-y-1 text-sm text-slate-700">
                 {normalizeIngredients(ingredients).map((item, index) => (
                   <li key={`preview-ingredient-${index}`}>
-                    {item.amount} {item.unit} {item.name} {item.note ? `(${item.note})` : ""}
+                    {item.amount} {getUnitLabel((item.unit_code || item.unit) as NonNullable<IngredientItem["unit_code"]>, lang)} {item.name} {item.note ? `(${item.note})` : ""}
                   </li>
                 ))}
               </ul>
@@ -1342,7 +1534,11 @@ export function RecipeForm({
 
       <div className="space-y-3">
         <div className="flex items-center justify-end">
-          <Button disabled={submitting || isAutoSaving} type="submit">
+          <Button
+            disabled={submitting || isAutoSaving || (status === "published" && !publishReady)}
+            type="submit"
+            title={status === "published" && !publishReady ? tt("Complete checklist before publishing.", "Uzupełnij checklistę przed publikacją.") : undefined}
+          >
             {submitting ? tt("Saving...", "Zapisywanie...") : tt("Save recipe", "Zapisz przepis")}
           </Button>
         </div>

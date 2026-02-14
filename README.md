@@ -105,6 +105,7 @@ Run SQL files in order:
 8. `supabase/008_recipe_management_soft_delete_labels.sql`
 9. `supabase/009_recipe_translations.sql`
 10. `supabase/010_openfoodfacts_cache_and_nutrition.sql`
+11. `supabase/011_catalog_tags_recipe_ingredients.sql`
 
 In Supabase Dashboard SQL Editor, paste and run each file.
 
@@ -237,8 +238,10 @@ Feed behavior (single config):
 ## OpenFoodFacts Integration
 
 - Backend-only OFF proxy routes:
+  - `GET /api/food-products/search?q=...`
   - `GET /api/off/search?q=...&lc=pl`
   - `GET /api/off/product/:barcode?lc=pl`
+  - `POST /api/off/seed` (batch seed run, resumable with `runId`)
 - Never call OFF directly from client apps.
 - Request policy:
   - sends `OFF_USER_AGENT` header
@@ -247,6 +250,7 @@ Feed behavior (single config):
     - `search_cache` TTL: 7 days
     - `product_cache` TTL: 30 days
 - Ingredient lines now support OFF linkage fields:
+  - `product_id` (local `food_products.id`)
   - `off_barcode`
   - `off_product_name`
   - `off_nutrition_per_100g`
@@ -266,6 +270,46 @@ Feed behavior (single config):
 2. Save recipe and verify `nutrition_summary` is populated in DB.
 3. Verify `GET /api/off/search` returns `source: cache` for repeated queries.
 4. Verify published feed (`getPublishedRecipes`) includes nutrition + ingredients preview and excludes trashed recipes.
+
+## Recipe Editor (Guided Flow)
+
+- New checklist box at top enforces readiness before publishing:
+  - title
+  - short description
+  - servings > 0
+  - at least 1 ingredient
+  - at least 1 step
+  - at least 1 image for `published`
+- Ingredient rows now use controlled units:
+  - `g`, `kg`, `ml`, `l`, `pcs`, `tsp`, `tbsp`, `cup`, `pinch`, `slice`, `clove`, `pack`
+- Ingredient product linking flow:
+  1. local search from `food_products`
+  2. optional “Search OpenFoodFacts” to sync remote results into local catalog
+  3. select product and auto-fill nutrition per 100g
+- Tags section uses `tags` table with autocomplete + create tag.
+
+## New Data Model (011)
+
+- `food_products`: local cached product catalog (OFF/manual) for fast autocomplete and normalized nutriments.
+- `tags` + `recipe_tags`: normalized recipe tagging (diet/cuisine/time/etc).
+- `recipe_ingredients`: relational ingredient rows (`product_id`, qty/unit, computed nutrition, substitutions).
+- `off_seed_runs`: progress log for OFF seeding batches.
+- `recipes` extended with:
+  - `description_short`, `description_full`
+  - `nutrition_total`, `nutrition_per_serving`
+  - `total_time_min` (kept in sync with `total_minutes`)
+
+## Smoke Test Checklist
+
+1. Apply SQL up to `011` in Supabase.
+2. Open `/recipes/new`, fill basics, verify checklist updates live.
+3. Add ingredient -> `Link to product` -> local search -> optional OFF search.
+4. Save recipe and verify:
+   - `recipes` updated
+   - `recipe_ingredients` rows created
+   - `tags`/`recipe_tags` synced
+5. Try status `published` without image and confirm publish save is blocked.
+6. Call `POST /api/off/seed` and verify `off_seed_runs` + `food_products` growth.
 
 ## Vercel Environment + Redeploy
 

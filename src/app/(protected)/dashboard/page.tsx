@@ -19,6 +19,11 @@ type DashboardProps = {
     language?: string;
     cuisine?: string;
     search?: string;
+    tag?: string;
+    difficulty?: string;
+    time_from?: string;
+    time_to?: string;
+    has_nutrition?: string;
     mine?: string;
     hasImage?: string;
     missingNutrition?: string;
@@ -123,10 +128,9 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
   }
 
   const translationRecipeIds = new Set<string>();
-  if (params.language || params.search) {
+  if (params.language) {
     let translationQuery = supabase.from("recipe_translations").select("recipe_id");
     if (params.language) translationQuery = translationQuery.eq("locale", params.language);
-    if (params.search) translationQuery = translationQuery.ilike("title", `%${params.search}%`);
     const { data: translationLinks } = await translationQuery.returns<Array<{ recipe_id: string }>>();
     for (const item of translationLinks || []) {
       translationRecipeIds.add(item.recipe_id);
@@ -137,9 +141,9 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
 
   let countQuery = supabase.from("recipes").select("id", { count: "exact", head: true });
   countQuery = applyDashboardRecipeListFilters(countQuery, params, session.user.id, "active");
-  if ((params.language || params.search) && translationRecipeIds.size > 0) {
+  if (params.language && translationRecipeIds.size > 0) {
     countQuery = countQuery.in("id", [...translationRecipeIds]);
-  } else if ((params.language || params.search) && translationRecipeIds.size === 0) {
+  } else if (params.language && translationRecipeIds.size === 0) {
     countQuery = countQuery.eq("id", "00000000-0000-0000-0000-000000000000");
   }
   if (params.label_id && labelRecipeIds.size > 0) {
@@ -154,9 +158,9 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
     .order(sortColumn, { ascending: sortAsc })
     .range(from, to);
   listQuery = applyDashboardRecipeListFilters(listQuery, params, session.user.id, "active");
-  if ((params.language || params.search) && translationRecipeIds.size > 0) {
+  if (params.language && translationRecipeIds.size > 0) {
     listQuery = listQuery.in("id", [...translationRecipeIds]);
-  } else if ((params.language || params.search) && translationRecipeIds.size === 0) {
+  } else if (params.language && translationRecipeIds.size === 0) {
     listQuery = listQuery.eq("id", "00000000-0000-0000-0000-000000000000");
   }
   if (params.label_id && labelRecipeIds.size > 0) {
@@ -267,7 +271,12 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
   if (params.language) activeParams.set("language", params.language);
   if (params.cuisine) activeParams.set("cuisine", params.cuisine);
   if (params.search) activeParams.set("search", params.search);
+  if (params.tag) activeParams.set("tag", params.tag);
   if (params.mine) activeParams.set("mine", params.mine);
+  if (params.difficulty) activeParams.set("difficulty", params.difficulty);
+  if (params.time_from) activeParams.set("time_from", params.time_from);
+  if (params.time_to) activeParams.set("time_to", params.time_to);
+  if (params.has_nutrition) activeParams.set("has_nutrition", params.has_nutrition);
   if (params.hasImage) activeParams.set("hasImage", params.hasImage);
   if (params.missingNutrition) activeParams.set("missingNutrition", params.missingNutrition);
   if (params.missingSubstitutions) activeParams.set("missingSubstitutions", params.missingSubstitutions);

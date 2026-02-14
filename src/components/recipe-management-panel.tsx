@@ -66,8 +66,13 @@ export function RecipeManagementPanel({
     const language = searchParams.get("language");
     const cuisine = searchParams.get("cuisine");
     const search = searchParams.get("search");
+    const tag = searchParams.get("tag");
     const mine = searchParams.get("mine");
     const hasImage = searchParams.get("hasImage");
+    const difficulty = searchParams.get("difficulty");
+    const timeFrom = searchParams.get("time_from");
+    const timeTo = searchParams.get("time_to");
+    const hasNutrition = searchParams.get("has_nutrition");
     const labelId = searchParams.get("label_id");
     const labelName = labels.find((item) => item.id === labelId)?.name || labelId;
 
@@ -75,8 +80,13 @@ export function RecipeManagementPanel({
     if (language) filters.push({ key: "language", label: tr(lang, "Language", "Język"), value: language });
     if (cuisine) filters.push({ key: "cuisine", label: tr(lang, "Cuisine", "Kuchnia"), value: cuisine });
     if (search) filters.push({ key: "search", label: tr(lang, "Search", "Szukaj"), value: search });
+    if (tag) filters.push({ key: "tag", label: tr(lang, "Tag", "Tag"), value: tag });
     if (mine === "1") filters.push({ key: "mine", label: tr(lang, "Scope", "Zakres"), value: tr(lang, "My drafts", "Moje szkice") });
     if (hasImage === "1") filters.push({ key: "hasImage", label: tr(lang, "Images", "Zdjęcia"), value: tr(lang, "Has image", "Ma zdjęcie") });
+    if (difficulty) filters.push({ key: "difficulty", label: tr(lang, "Difficulty", "Trudność"), value: difficulty });
+    if (timeFrom) filters.push({ key: "time_from", label: tr(lang, "Time from", "Czas od"), value: timeFrom });
+    if (timeTo) filters.push({ key: "time_to", label: tr(lang, "Time to", "Czas do"), value: timeTo });
+    if (hasNutrition === "1") filters.push({ key: "has_nutrition", label: tr(lang, "Nutrition", "Nutrition"), value: tr(lang, "Computed", "Wyliczone") });
     if (labelId) filters.push({ key: "label_id", label: tr(lang, "Label", "Etykieta"), value: labelName || labelId });
     return filters;
   }, [lang, labels, searchParams]);
@@ -218,6 +228,47 @@ export function RecipeManagementPanel({
             placeholder={tr(lang, "Search title", "Szukaj po tytule")}
             className="w-[220px]"
           />
+          <Input
+            name="tag"
+            defaultValue={searchParams.get("tag") || ""}
+            onBlur={(event) => setQueryParam({ tag: event.target.value.trim() || null })}
+            placeholder={tr(lang, "Tag slug", "Slug tagu")}
+            className="w-[150px]"
+          />
+          <Select
+            defaultValue={searchParams.get("difficulty") || ""}
+            onChange={(event) => setQueryParam({ difficulty: event.target.value || null })}
+            className="w-[150px]"
+          >
+            <option value="">{tr(lang, "Any difficulty", "Dowolna trudność")}</option>
+            <option value="easy">{tr(lang, "easy", "łatwy")}</option>
+            <option value="medium">{tr(lang, "medium", "średni")}</option>
+            <option value="hard">{tr(lang, "hard", "trudny")}</option>
+          </Select>
+          <Input
+            type="number"
+            min={0}
+            defaultValue={searchParams.get("time_from") || ""}
+            onBlur={(event) => setQueryParam({ time_from: event.target.value || null })}
+            placeholder={tr(lang, "Min min", "Min min")}
+            className="w-[110px]"
+          />
+          <Input
+            type="number"
+            min={0}
+            defaultValue={searchParams.get("time_to") || ""}
+            onBlur={(event) => setQueryParam({ time_to: event.target.value || null })}
+            placeholder={tr(lang, "Max min", "Max min")}
+            className="w-[110px]"
+          />
+          <label className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-700">
+            <input
+              type="checkbox"
+              checked={searchParams.get("has_nutrition") === "1"}
+              onChange={(event) => setQueryParam({ has_nutrition: event.target.checked ? "1" : null })}
+            />
+            {tr(lang, "Has nutrition", "Ma nutrition")}
+          </label>
           <Select
             defaultValue={searchParams.get("label_id") || ""}
             onChange={(event) => setQueryParam({ label_id: event.target.value || null })}
@@ -289,8 +340,13 @@ export function RecipeManagementPanel({
               language: null,
               cuisine: null,
               search: null,
+              tag: null,
               mine: null,
               hasImage: null,
+              difficulty: null,
+              time_from: null,
+              time_to: null,
+              has_nutrition: null,
               missingNutrition: null,
               missingSubstitutions: null,
               label_id: null,
