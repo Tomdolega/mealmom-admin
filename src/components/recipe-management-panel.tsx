@@ -30,6 +30,10 @@ const sortOptions = [
   { value: "title.asc", en: "Title A-Z", pl: "Tytuł A-Z" },
   { value: "title.desc", en: "Title Z-A", pl: "Tytuł Z-A" },
   { value: "status.asc", en: "Status", pl: "Status" },
+  { value: "total_minutes.asc", en: "Time (shortest)", pl: "Czas (najkrótszy)" },
+  { value: "total_minutes.desc", en: "Time (longest)", pl: "Czas (najdłuższy)" },
+  { value: "kcal.desc", en: "Kcal/serving", pl: "Kcal/porcja" },
+  { value: "protein.desc", en: "Protein/serving", pl: "Białko/porcja" },
 ];
 
 export function RecipeManagementPanel({

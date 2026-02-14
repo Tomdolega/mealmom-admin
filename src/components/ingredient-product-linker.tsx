@@ -46,7 +46,7 @@ export function IngredientProductLinker({ onSelect, disabled }: IngredientProduc
     const timeoutId = setTimeout(async () => {
       setLoading(true);
       setError(null);
-      const response = await fetch(`/api/food-products/search?q=${encodeURIComponent(normalizedQuery)}&limit=15`);
+      const response = await fetch(`/api/products/off-search?q=${encodeURIComponent(normalizedQuery)}&locale=pl`);
       const payload = (await response.json()) as { error?: string; results?: ProductResult[] };
       setLoading(false);
 
@@ -70,7 +70,7 @@ export function IngredientProductLinker({ onSelect, disabled }: IngredientProduc
 
     setSyncingOff(true);
     setError(null);
-    const response = await fetch(`/api/off/search?q=${encodeURIComponent(normalizedQuery)}&lc=pl`);
+    const response = await fetch(`/api/products/off-search?q=${encodeURIComponent(normalizedQuery)}&locale=pl&fetch_off=1`);
     const payload = (await response.json()) as { error?: string; results?: ProductResult[] };
     setSyncingOff(false);
 

@@ -9,9 +9,11 @@ import type { LabelRecord, ProfileRole, RecipeStatus } from "@/lib/types";
 
 export type RecipeManagementRow = {
   id: string;
+  translation_group_id?: string;
   title: string;
   status: RecipeStatus;
   language: string;
+  languages_summary?: string[];
   updated_at: string;
   created_at: string;
   deleted_at: string | null;
@@ -19,6 +21,7 @@ export type RecipeManagementRow = {
   primary_cuisine: string | null;
   image_urls: string[];
   labels: LabelRecord[];
+  nutrition_summary?: unknown;
 };
 
 type RecipeTableProps = {
@@ -63,6 +66,12 @@ export function RecipeTable({
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium text-slate-900">{row.title}</p>
                   <p className="text-xs text-slate-500">{row.language}</p>
+                  {row.languages_summary?.length ? (
+                    <p className="text-[11px] text-slate-400">{tr(lang, "Languages", "Języki")}: {row.languages_summary.join(", ")}</p>
+                  ) : null}
+                  {row.translation_group_id ? (
+                    <p className="text-[11px] text-slate-400">group: {row.translation_group_id.slice(0, 8)}</p>
+                  ) : null}
                 </div>
                 <StatusBadge status={row.status} lang={lang} />
               </div>
@@ -149,6 +158,12 @@ export function RecipeTable({
                       <div className="min-w-0">
                         <p className="truncate font-medium text-slate-900">{row.title}</p>
                         <p className="text-xs text-slate-500">{row.primary_cuisine || "-"}</p>
+                        {row.languages_summary?.length ? (
+                          <p className="text-[11px] text-slate-400">{row.languages_summary.join(", ")}</p>
+                        ) : null}
+                        {row.translation_group_id ? (
+                          <p className="text-[11px] text-slate-400">group: {row.translation_group_id.slice(0, 8)}</p>
+                        ) : null}
                       </div>
                     </div>
                   </td>

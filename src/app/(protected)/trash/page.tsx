@@ -22,7 +22,7 @@ type TrashPageProps = {
   }>;
 };
 
-const allowedSortColumns = new Set(["updated_at", "created_at", "title", "status", "deleted_at"]);
+const allowedSortColumns = new Set(["updated_at", "created_at", "title", "status", "deleted_at", "total_minutes"]);
 const allowedPageSizes = new Set([25, 50, 100]);
 
 export default async function TrashPage({ searchParams }: TrashPageProps) {
@@ -146,9 +146,11 @@ export default async function TrashPage({ searchParams }: TrashPageProps) {
       (translationsByRecipe.get(row.id) || [])[0];
     return {
       id: row.id,
+      translation_group_id: row.translation_group_id,
       title: preferredTranslation?.title || row.title,
       status: row.status,
       language: preferredTranslation?.locale || "—",
+      languages_summary: [...new Set((translationsByRecipe.get(row.id) || []).map((item) => item.locale))],
       updated_at: row.updated_at,
       created_at: row.created_at,
       deleted_at: row.deleted_at,

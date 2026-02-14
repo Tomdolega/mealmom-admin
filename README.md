@@ -238,10 +238,11 @@ Feed behavior (single config):
 ## OpenFoodFacts Integration
 
 - Backend-only OFF proxy routes:
-  - `GET /api/food-products/search?q=...`
-  - `GET /api/off/search?q=...&lc=pl`
-  - `GET /api/off/product/:barcode?lc=pl`
-  - `POST /api/off/seed` (batch seed run, resumable with `runId`)
+  - `GET /api/products/off-search?q=...&locale=pl`
+  - `POST /api/products/off-seed`
+  - `GET /api/off/search?q=...&lc=pl` (legacy internal route)
+  - `GET /api/off/product/:barcode?lc=pl` (legacy/internal detail route)
+  - `POST /api/off/seed` (legacy batch route)
 - Never call OFF directly from client apps.
 - Request policy:
   - sends `OFF_USER_AGENT` header
@@ -282,6 +283,11 @@ Feed behavior (single config):
   - at least 1 image for `published`
 - Ingredient rows now use controlled units:
   - `g`, `kg`, `ml`, `l`, `pcs`, `tsp`, `tbsp`, `cup`, `pinch`, `slice`, `clove`, `pack`
+- Server nutrition endpoint:
+  - `POST /api/nutrition/calc`
+  - computes ingredient totals + recipe totals + per serving
+  - writes to `recipes.nutrition_total` and `recipes.nutrition_per_serving`
+  - cache via `nutrition_calc_cache` (stable payload hash)
 - Ingredient product linking flow:
   1. local search from `food_products`
   2. optional “Search OpenFoodFacts” to sync remote results into local catalog
@@ -299,17 +305,27 @@ Feed behavior (single config):
   - `nutrition_total`, `nutrition_per_serving`
   - `total_time_min` (kept in sync with `total_minutes`)
 
+## Alignment Migration (012)
+
+- `supabase/012_professional_recipe_system_alignment.sql` adds:
+  - `food_products.image_url`
+  - aligns `food_products.categories` to `jsonb`
+  - `nutrition_calc_cache` table + RLS + trigger/index
+  - additional index/policy safety alignment
+
 ## Smoke Test Checklist
 
 1. Apply SQL up to `011` in Supabase.
-2. Open `/recipes/new`, fill basics, verify checklist updates live.
-3. Add ingredient -> `Link to product` -> local search -> optional OFF search.
-4. Save recipe and verify:
+2. Apply `supabase/012_professional_recipe_system_alignment.sql`.
+3. Open `/recipes/new`, fill basics, verify checklist updates live.
+4. Add ingredient -> `Link to product` -> local search -> optional OFF search.
+5. Save recipe and verify:
    - `recipes` updated
    - `recipe_ingredients` rows created
    - `tags`/`recipe_tags` synced
-5. Try status `published` without image and confirm publish save is blocked.
-6. Call `POST /api/off/seed` and verify `off_seed_runs` + `food_products` growth.
+   - `nutrition_total` + `nutrition_per_serving` updated by `/api/nutrition/calc`
+6. Try status `published` without image and confirm publish save is blocked.
+7. Call `POST /api/products/off-seed` and verify `food_products` growth.
 
 ## Vercel Environment + Redeploy
 

@@ -521,6 +521,33 @@ export function RecipeForm({
         return;
       }
 
+      const normalizedServingsForCalc =
+        typeof payload.servings === "number" && Number.isFinite(payload.servings) && payload.servings > 0
+          ? payload.servings
+          : 1;
+      const calcResponse = await fetch("/api/nutrition/calc", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          recipe_id: result.data.id,
+          servings: normalizedServingsForCalc,
+          ingredients: payload.ingredients.map((ingredient) => ({
+            product_id: ingredient.product_id || null,
+            display_name: ingredient.name,
+            qty: Number(ingredient.amount || 0),
+            unit: ingredient.unit_code || ingredient.unit,
+            computed: ingredient.off_nutrition_per_100g || null,
+          })),
+        }),
+      });
+      if (!calcResponse.ok) {
+        const calcPayload = (await calcResponse.json().catch(() => ({}))) as { error?: string };
+        console.warn("Recipe nutrition calc route failed during save", {
+          recipeId: result.data.id,
+          message: calcPayload.error || "Unknown nutrition calc failure",
+        });
+      }
+
       const translationStatus =
         payload.status === "published"
           ? "published"

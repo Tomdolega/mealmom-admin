@@ -61,7 +61,7 @@ async function getStatusCount(
   return count || 0;
 }
 
-const allowedSortColumns = new Set(["updated_at", "created_at", "title", "status"]);
+const allowedSortColumns = new Set(["updated_at", "created_at", "title", "status", "total_minutes"]);
 const allowedPageSizes = new Set([25, 50, 100]);
 
 export default async function DashboardPage({ searchParams }: DashboardProps) {
@@ -251,20 +251,40 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
         (translationsByRecipe.get(item.id) || []).find((row) => row.locale === params.language) ||
         (translationsByRecipe.get(item.id) || []).find((row) => row.locale === defaultLocale) ||
         (translationsByRecipe.get(item.id) || [])[0];
-      return {
-        id: item.id,
-        title: preferredTranslation?.title || item.title,
-        status: item.status,
-        language: preferredTranslation?.locale || "—",
-        updated_at: item.updated_at,
+        return {
+          id: item.id,
+          translation_group_id: item.translation_group_id,
+          title: preferredTranslation?.title || item.title,
+          status: item.status,
+          language: preferredTranslation?.locale || "—",
+          languages_summary: [...new Set((translationsByRecipe.get(item.id) || []).map((row) => row.locale))],
+          updated_at: item.updated_at,
         created_at: item.created_at,
         deleted_at: item.deleted_at,
         deleted_by: item.deleted_by,
-        primary_cuisine: item.primary_cuisine,
-        image_urls: item.image_urls,
-        labels: item.labels,
-      };
-    });
+          primary_cuisine: item.primary_cuisine,
+          image_urls: item.image_urls,
+          labels: item.labels,
+          nutrition_summary: item.nutrition_summary,
+        };
+      });
+  const sortedRows =
+    params.sort === "kcal" || params.sort === "protein"
+      ? [...finalRows].sort((a, b) => {
+          const field = params.sort === "protein" ? "protein_g" : "kcal";
+          const aValue = Number(
+            (a.nutrition_summary as { per_serving?: { kcal?: number; protein_g?: number } } | undefined)?.per_serving?.[
+              field
+            ] || 0,
+          );
+          const bValue = Number(
+            (b.nutrition_summary as { per_serving?: { kcal?: number; protein_g?: number } } | undefined)?.per_serving?.[
+              field
+            ] || 0,
+          );
+          return sortAsc ? aValue - bValue : bValue - aValue;
+        })
+      : finalRows;
 
   const activeParams = new URLSearchParams();
   if (params.status) activeParams.set("status", params.status);
@@ -407,7 +427,7 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
           </div>
 
           <RecipeManagementPanel
-            rows={finalRows}
+            rows={sortedRows}
             labels={labels}
             enabledCuisines={normalizedSettings.enabled_cuisines}
             role={profile.role}
