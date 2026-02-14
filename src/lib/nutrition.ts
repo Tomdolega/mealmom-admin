@@ -46,6 +46,18 @@ export function toGrams(amountRaw: string, unitRaw: string, servingSize?: string
     if (!Number.isFinite(gramsPerPiece) || gramsPerPiece <= 0) return null;
     return gramsPerPiece * amount;
   }
+  if (unit === "tsp" || unit === "łyżeczka" || unit === "lyzeczka") {
+    return amount * 5;
+  }
+  if (unit === "tbsp" || unit === "łyżka" || unit === "lyzka") {
+    return amount * 15;
+  }
+  if (unit === "cup" || unit === "szklanka") {
+    return amount * 240;
+  }
+  if (unit === "pack" || unit === "opakowanie") {
+    return servingSize ? toGrams(amountRaw, "pcs", servingSize) : null;
+  }
   return null;
 }
 
@@ -67,7 +79,7 @@ export function computeRecipeNutritionSummary(ingredients: IngredientItem[], ser
   let totalWeight = 0;
   let total = zero();
   for (const ingredient of ingredients || []) {
-    const grams = toGrams(ingredient.amount, ingredient.unit);
+    const grams = toGrams(ingredient.amount, ingredient.unit_code || ingredient.unit);
     if (!grams || !ingredient.off_nutrition_per_100g) continue;
     totalWeight += grams;
     total = mergeMacro(total, grams, ingredient.off_nutrition_per_100g);

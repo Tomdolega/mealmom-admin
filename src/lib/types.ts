@@ -2,11 +2,22 @@ export type ProfileRole = "admin" | "editor" | "reviewer";
 export type RecipeStatus = "draft" | "in_review" | "published" | "archived";
 export type UiDensity = "comfortable" | "compact";
 export type TranslationStatus = "draft" | "in_review" | "published";
+export type IngredientUnitCode =
+  | "g"
+  | "kg"
+  | "ml"
+  | "l"
+  | "pcs"
+  | "tsp"
+  | "tbsp"
+  | "cup"
+  | "pack";
 
 export type IngredientItem = {
   ingredient_key?: string;
   name: string;
   amount: string;
+  unit_code?: IngredientUnitCode;
   unit: string;
   note?: string;
   off_barcode?: string;

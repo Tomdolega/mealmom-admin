@@ -12,13 +12,17 @@ type BulkAction =
   | "delete_permanent"
   | "set_status"
   | "assign_label"
-  | "remove_label";
+  | "remove_label"
+  | "set_primary_cuisine"
+  | "set_tags";
 
 type BulkRequestBody = {
   action?: BulkAction;
   recipeIds?: string[];
   status?: RecipeStatus;
   labelId?: string;
+  primaryCuisine?: string;
+  tags?: string[] | string;
 };
 
 function uniqueIds(values: string[] = []) {
@@ -141,6 +145,28 @@ export async function POST(request: Request) {
       .delete()
       .eq("label_id", body.labelId)
       .in("recipe_id", recipeIds);
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ ok: true, affected: recipeIds.length });
+  }
+
+  if (action === "set_primary_cuisine") {
+    const nextCuisine = (body.primaryCuisine || "").trim();
+    const { error } = await admin
+      .from("recipes")
+      .update({ primary_cuisine: nextCuisine.length > 0 ? nextCuisine : null })
+      .in("id", recipeIds);
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ ok: true, affected: recipeIds.length });
+  }
+
+  if (action === "set_tags") {
+    const rawTags = Array.isArray(body.tags)
+      ? body.tags.map((item) => String(item || ""))
+      : typeof body.tags === "string"
+        ? body.tags.split("|")
+        : [];
+    const tags = [...new Set(rawTags.map((item) => item.trim()).filter(Boolean))];
+    const { error } = await admin.from("recipes").update({ tags }).in("id", recipeIds);
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
     return NextResponse.json({ ok: true, affected: recipeIds.length });
   }

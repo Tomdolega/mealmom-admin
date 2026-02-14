@@ -10,6 +10,7 @@ import type { LabelRecord, RecipeStatus } from "@/lib/types";
 type BulkActionBarProps = {
   canManage: boolean;
   isTrashView: boolean;
+  enabledCuisines?: string[];
   selectedCount: number;
   allSelectedOnPage: boolean;
   labels: LabelRecord[];
@@ -30,6 +31,7 @@ type BulkActionBarProps = {
 export function BulkActionBar({
   canManage,
   isTrashView,
+  enabledCuisines = [],
   selectedCount,
   allSelectedOnPage,
   labels,
@@ -45,6 +47,8 @@ export function BulkActionBar({
   const [labelId, setLabelId] = useState("");
   const [newLabelName, setNewLabelName] = useState("");
   const [newLabelColor, setNewLabelColor] = useState("#64748b");
+  const [primaryCuisine, setPrimaryCuisine] = useState("");
+  const [tagsText, setTagsText] = useState("");
 
   const csvPayload = useMemo(() => {
     const header = ["id", "title", "status", "language", "updated_at"];
@@ -167,6 +171,52 @@ export function BulkActionBar({
                 onClick={() => void onAction("remove_label", { labelId })}
               >
                 {tr(lang, "Remove label", "Usuń etykietę")}
+              </Button>
+
+              <Select
+                value={primaryCuisine}
+                onChange={(event) => setPrimaryCuisine(event.target.value)}
+                className="min-w-[200px]"
+              >
+                <option value="">{tr(lang, "Set primary cuisine", "Ustaw kuchnię główną")}</option>
+                {enabledCuisines.map((cuisine) => (
+                  <option key={cuisine} value={cuisine}>
+                    {cuisine}
+                  </option>
+                ))}
+              </Select>
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                disabled={selectedCount === 0 || loading}
+                onClick={() => void onAction("set_primary_cuisine", { primaryCuisine })}
+              >
+                {tr(lang, "Apply cuisine", "Zastosuj kuchnię")}
+              </Button>
+
+              <Input
+                value={tagsText}
+                onChange={(event) => setTagsText(event.target.value)}
+                placeholder={tr(lang, "Tags (comma separated)", "Tagi (po przecinku)")}
+                className="h-10 w-[220px]"
+              />
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                disabled={selectedCount === 0 || loading}
+                onClick={() =>
+                  void onAction("set_tags", {
+                    tags: tagsText
+                      .split(",")
+                      .map((item) => item.trim())
+                      .filter(Boolean)
+                      .join("|"),
+                  })
+                }
+              >
+                {tr(lang, "Set tags", "Ustaw tagi")}
               </Button>
 
               <Input

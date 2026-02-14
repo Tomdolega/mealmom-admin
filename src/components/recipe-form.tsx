@@ -23,6 +23,7 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { getRecipeStatusLabel } from "@/lib/recipe-status";
 import { computeRecipeNutritionSummary, suggestSubstitutionsForIngredient } from "@/lib/nutrition";
+import { getUnitLabel, INGREDIENT_UNITS, normalizeUnitCode } from "@/lib/ingredient-units";
 import { getClientUILang, tr } from "@/lib/ui-language.client";
 
 const allStatuses: RecipeStatus[] = ["draft", "in_review", "published", "archived"];
@@ -128,10 +129,11 @@ function statusOptionsForRole(role: ProfileRole, mode: "create" | "edit", curren
 function normalizeIngredients(items: IngredientItem[]) {
   return items
     .map((item) => ({
+      unit_code: normalizeUnitCode(item.unit_code || item.unit),
       ingredient_key: item.ingredient_key?.trim() || undefined,
       name: item.name.trim(),
       amount: item.amount.trim(),
-      unit: item.unit.trim(),
+      unit: getUnitLabel(normalizeUnitCode(item.unit_code || item.unit) || "g", "en"),
       note: item.note?.trim() || "",
       off_barcode: item.off_barcode?.trim() || undefined,
       off_product_name: item.off_product_name?.trim() || undefined,
@@ -207,7 +209,7 @@ export function RecipeForm({
   const [imageUrls, setImageUrls] = useState<string[]>(recipe?.image_urls || []);
   const [newImageUrl, setNewImageUrl] = useState("");
   const [ingredients, setIngredients] = useState<IngredientItem[]>(
-    recipe?.ingredients?.length ? recipe.ingredients : [{ name: "", amount: "", unit: "", note: "" }],
+    recipe?.ingredients?.length ? recipe.ingredients : [{ name: "", amount: "", unit: "g", unit_code: "g", note: "" }],
   );
   const [steps, setSteps] = useState<StepItem[]>(
     recipe?.steps?.length ? recipe.steps : [{ step_number: 1, text: "", timer_seconds: null }],
@@ -360,6 +362,17 @@ export function RecipeForm({
         }
         if (per100gValue != null && (!Number.isFinite(per100gValue) || per100gValue < 0)) {
           return { payload: null, message: tt("Nutrition values must be numbers >= 0.", "Wartości nutrition muszą być liczbami >= 0.") };
+        }
+      }
+
+      for (const ingredient of nextIngredients) {
+        const hasAmount = String(ingredient.amount || "").trim().length > 0;
+        if (hasAmount && !Number.isFinite(Number(ingredient.amount))) {
+          return { payload: null, message: tt("Ingredient amount must be a number.", "Ilość składnika musi być liczbą.") };
+        }
+        const normalizedUnit = normalizeUnitCode(ingredient.unit_code || ingredient.unit);
+        if (!normalizedUnit) {
+          return { payload: null, message: tt("Ingredient unit is required.", "Jednostka składnika jest wymagana.") };
         }
       }
 
@@ -534,7 +547,7 @@ export function RecipeForm({
           setIngredients(
             Array.isArray(refreshedRecipe.ingredients) && refreshedRecipe.ingredients.length > 0
               ? refreshedRecipe.ingredients
-              : [{ name: "", amount: "", unit: "", note: "" }],
+              : [{ name: "", amount: "", unit: "g", unit_code: "g", note: "" }],
           );
           setSteps(
             Array.isArray(refreshedRecipe.steps) && refreshedRecipe.steps.length > 0
@@ -1048,7 +1061,7 @@ export function RecipeForm({
             <p className="text-sm text-slate-600">{tt("Capture each ingredient as a structured row.", "Każdy składnik zapisz jako osobny, uporządkowany wiersz.")}</p>
           </div>
           {canEditContent ? (
-            <Button type="button" variant="secondary" size="sm" onClick={() => setIngredients((prev) => [...prev, { name: "", amount: "", unit: "", note: "" }])}>
+            <Button type="button" variant="secondary" size="sm" onClick={() => setIngredients((prev) => [...prev, { name: "", amount: "", unit: "g", unit_code: "g", note: "" }])}>
               {tt("Add ingredient", "Dodaj składnik")}
             </Button>
           ) : null}
@@ -1061,7 +1074,29 @@ export function RecipeForm({
                 <Input placeholder={tt("ingredient_key (optional)", "ingredient_key (opcjonalnie)")} value={ingredient.ingredient_key || ""} disabled={!canEditContent} onChange={(e) => setIngredients((prev) => prev.map((item, i) => (i === index ? { ...item, ingredient_key: e.target.value } : item)))} />
                 <Input placeholder={tt("Name", "Nazwa")} value={ingredient.name} disabled={!canEditContent} onChange={(e) => setIngredients((prev) => prev.map((item, i) => (i === index ? { ...item, name: e.target.value } : item)))} />
                 <Input placeholder={tt("Amount", "Ilość")} value={ingredient.amount} disabled={!canEditContent} onChange={(e) => setIngredients((prev) => prev.map((item, i) => (i === index ? { ...item, amount: e.target.value } : item)))} />
-                <Input placeholder={tt("Unit", "Jednostka")} value={ingredient.unit} disabled={!canEditContent} onChange={(e) => setIngredients((prev) => prev.map((item, i) => (i === index ? { ...item, unit: e.target.value } : item)))} />
+                <Select
+                  value={normalizeUnitCode(ingredient.unit_code || ingredient.unit) || "g"}
+                  disabled={!canEditContent}
+                  onChange={(e) =>
+                    setIngredients((prev) =>
+                      prev.map((item, i) =>
+                        i === index
+                          ? {
+                              ...item,
+                              unit_code: e.target.value as IngredientItem["unit_code"],
+                              unit: getUnitLabel(e.target.value as NonNullable<IngredientItem["unit_code"]>, lang),
+                            }
+                          : item,
+                      ),
+                    )
+                  }
+                >
+                  {INGREDIENT_UNITS.map((item) => (
+                    <option key={item.code} value={item.code}>
+                      {tt(item.en, item.pl)}
+                    </option>
+                  ))}
+                </Select>
                 <Input placeholder={tt("Note (optional)", "Notatka (opcjonalnie)")} value={ingredient.note || ""} disabled={!canEditContent} onChange={(e) => setIngredients((prev) => prev.map((item, i) => (i === index ? { ...item, note: e.target.value } : item)))} />
               </div>
               <div className="flex flex-wrap items-center gap-2">
