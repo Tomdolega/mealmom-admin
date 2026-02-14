@@ -66,6 +66,21 @@ export type RecipeRecord = {
   created_at: string;
   updated_at: string;
   published_at: string | null;
+  deleted_at?: string | null;
+  deleted_by?: string | null;
+};
+
+export type LabelRecord = {
+  id: string;
+  name: string;
+  color: string | null;
+  created_at: string;
+};
+
+export type RecipeLabelRecord = {
+  recipe_id: string;
+  label_id: string;
+  created_at: string;
 };
 
 export type ProfileRecord = {

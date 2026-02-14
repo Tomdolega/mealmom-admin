@@ -20,12 +20,15 @@ export type DashboardRecipeListRow = {
   primary_cuisine: string | null;
   cuisines: string[];
   created_by: string | null;
+  created_at: string;
   updated_at: string;
+  deleted_at: string | null;
+  deleted_by: string | null;
 };
 
 // Keep dashboard list intentionally flat and schema-stable (no joins, no optional migrated columns).
 export const DASHBOARD_RECIPE_LIST_COLUMNS =
-  "id, title, status, language, updated_at, translation_group_id, created_by, primary_cuisine, cuisines";
+  "id, title, status, language, created_at, updated_at, translation_group_id, created_by, primary_cuisine, cuisines, deleted_at, deleted_by";
 
 function buildCuisineOrFilter(cuisine: string) {
   const escaped = cuisine.replaceAll('"', '\\"');
@@ -44,9 +47,12 @@ export function applyDashboardRecipeListFilters<T extends DashboardFilterQuery<T
   query: T,
   params: DashboardQueryParams,
   userId: string,
+  view: "active" | "trash" = "active",
 ) {
   let nextQuery = query;
 
+  if (view === "trash") nextQuery = nextQuery.not("deleted_at", "is", "null");
+  else nextQuery = nextQuery.filter("deleted_at", "is", "null");
   if (params.status) nextQuery = nextQuery.eq("status", params.status);
   if (params.language) nextQuery = nextQuery.eq("language", params.language);
   if (params.search) nextQuery = nextQuery.ilike("title", `%${params.search}%`);
